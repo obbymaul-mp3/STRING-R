@@ -95,7 +95,7 @@ struct Engine {
   // ---------------------------------------------------------------- notes on and off
   void midiOut(int st, int a, int b) { const int w = mqW.load(); mq[w & 511] = uint32_t(st) | (uint32_t(a) << 8) | (uint32_t(b) << 16); mqW.store(w + 1); }
   void noteOn(int t, int pitch, float vel, int gate) {
-    if (t < 0 || t >= nT) return; Track& T = *trk[t]; const float* P = T.Pe;
+    if (t < 0 || t >= nT || pitch < 0 || pitch > 127) return; Track& T = *trk[t]; const float* P = T.Pe;
     if (T.type == T_DRUM) { const int pd = pitch < 8 ? pitch : ((pitch - 36) % 8 + 8) % 8; const Pad& p = T.pads[pd]; auto s = p.type == D_SAMPLE ? getSmp(p.smp) : nullptr;
       if (p.type == D_CHAT) for (auto& v : T.dv) if (v.type == D_OHAT) v.on = false;
       T.dv[pd].trig(p, vel, sr, s.get()); if (p.type == D_KICK) { duckEnv = 1; T.kickEnv = 1; } return; }
@@ -276,7 +276,7 @@ struct Engine {
   }
   void master(float* l, float* r, int n) {
     if (M[M_LOW] != mEqV[0]) { mEqV[0] = M[M_LOW]; for (auto& b : mLow) b.lowShelf(90, (M[M_LOW] - 0.5f) * 12, sr); } if (M[M_HIGH] != mEqV[1]) { mEqV[1] = M[M_HIGH]; for (auto& b : mHigh) b.highShelf(8000, (M[M_HIGH] - 0.5f) * 12, sr); }
-    const float glue = M[M_GLUE], thr = dbGain(-4 - glue * 20), ratio = 1 + glue * 3, mk = dbGain(glue * 7), sat = M[M_SAT], wide = M[M_WIDE] * 2, loudG = dbGain(M[M_LOUD] * 24 - 4), vol = M[M_VOL] * M[M_VOL] * 1.5625f;
+    const float glue = M[M_GLUE], thr = dbGain(-4 - glue * 20), ratio = 1 + glue * 3, mk = dbGain(glue * 7), sat = M[M_SAT], wide = M[M_WIDE] * 2, loudG = dbGain(M[M_LOUD] * 24 - 4), vol = std::min(1.f, M[M_VOL] * M[M_VOL] * 1.5625f);
     const float ca = 1 - std::exp(-1 / (sr * 0.012f)), cr = 1 - std::exp(-1 / (sr * 0.18f)); float gmin = 1;
     for (int i = 0; i < n; i++) {
       float a = mHigh[0].run(mLow[0].run(l[i] * 0.5f)), b = mHigh[1].run(mLow[1].run(r[i] * 0.5f));

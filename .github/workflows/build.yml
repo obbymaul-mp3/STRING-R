@@ -21,6 +21,8 @@ jobs:
         run: |
           g++ -std=c++17 -O2 -Iapp/src/main/cpp/engine enginetest/host.cpp -o smhost
           ./smhost test app/src/main/assets/demo.smx
+          g++ -std=c++17 -O1 -fsanitize=address,undefined -fno-sanitize-recover=undefined -Iapp/src/main/cpp/engine enginetest/fuzz.cpp -o smfuzz
+          timeout 600 ./smfuzz app/src/main/assets/demo.smx 1
       - name: Build
         run: gradle :app:assembleDebug --no-daemon --stacktrace
       - name: Name the APK

@@ -51,7 +51,7 @@ struct Delay {
   void run(const float* inL, const float* inR, float* oL, float* oR, int n, float samples, float fb, float tone) {
     const int N = int(L.size()); samples = clampf(samples, 64.f, float(N - 2)); const float a = 0.05f + 0.9f * tone;
     for (int i = 0; i < n; i++) {
-      cur += (samples - cur) * 0.0015f; float rp = float(w) - cur; while (rp < 0) rp += N; const int i0 = int(rp), i1 = (i0 + 1) % N; const float f = rp - i0;
+      cur += (samples - cur) * 0.0015f; float rp = float(w) - cur; while (rp < 0) rp += N; const int i0 = int(rp) % N, i1 = (i0 + 1) % N; const float f = rp - i0;
       const float dl = L[i0] + (L[i1] - L[i0]) * f, dr = R[i0] + (R[i1] - R[i0]) * f;
       lpL += (dl - lpL) * a; lpR += (dr - lpR) * a;
       L[w] = (inL[i] + inR[i]) * 0.5f + lpR * fb; R[w] = lpL * fb;   // the echo bounces left, right, left
@@ -107,7 +107,7 @@ struct Tuner {
       phase += (1 - ratio) / W; if (phase >= 1) phase -= 1; if (phase < 0) phase += 1;
       float oL = 0, oR = 0;
       for (int k = 0; k < 2; k++) { float p = phase + 0.5f * k; if (p >= 1) p -= 1; const float g = std::sin(PI * p); float rp = float(w) - 2 - p * W; while (rp < 0) rp += N;
-        const int i0 = int(rp), i1 = (i0 + 1) % N; const float f = rp - i0; oL += (dl[i0] + (dl[i1] - dl[i0]) * f) * g * g; oR += (dr[i0] + (dr[i1] - dr[i0]) * f) * g * g; }
+        const int i0 = int(rp) % N, i1 = (i0 + 1) % N; const float f = rp - i0; oL += (dl[i0] + (dl[i1] - dl[i0]) * f) * g * g; oR += (dr[i0] + (dr[i1] - dr[i0]) * f) * g * g; }
       L[i] = oL; R[i] = oR; if (++w >= N) w = 0;
     }
   }
