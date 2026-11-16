@@ -2,16 +2,16 @@
 const SMD = (() => {
   const P = { VOL: 0, PAN: 1, CUT: 2, RES: 3, HPF: 4, DRIVE: 5, CRUSH: 6, SENDA: 7, SENDB: 8, DUCK: 9, EQLO: 10, EQMID: 11, EQHI: 12, TUNE: 13, SHIFT: 14,
     ATK: 16, DEC: 17, SUS: 18, REL: 19, DETUNE: 20, SUB: 21, FENV: 22, FDEC: 23, GLIDE: 24, SHAPE: 25, OCT: 26, ARP: 27, ARPRATE: 28, ARPOCT: 29, ARPMODE: 30, LFORATE: 31, LFOCUT: 32, VIB: 33,
-    S_ATK: 16, S_REL: 19, S_START: 20, S_END: 21, S_MODE: 22, S_STRETCH: 23, S_BARS: 24, S_ROOT: 25, S_REV: 26, S_GAIN: 27, RUMBLE: 16, RUMTONE: 17 };
+    S_ATK: 16, S_REL: 19, S_START: 20, S_END: 21, S_MODE: 22, S_STRETCH: 23, S_BARS: 24, S_ROOT: 25, S_REV: 26, S_GAIN: 27, G_POS: 28, G_SIZE: 29, G_DENS: 30, G_SPRAY: 31, G_SPREAD: 32, G_SHATTER: 33, G_FREEZE: 34, RUMBLE: 16, RUMTONE: 17 };
   const M = { DTIME: 0, DFB: 1, DTONE: 2, RSIZE: 3, RDAMP: 4, LOW: 5, HIGH: 6, GLUE: 7, SAT: 8, WIDE: 9, LOUD: 10, VOL: 11 };
   const TYPES = ['DRUMS', 'SYNTH', 'SAMPLER', 'FM-1 / MIDI'];
   const ENGINES = ['SUPERSAW', 'BASS', 'CHIP', 'VOX'];
-  const DRUMS = ['KICK', 'SNARE', 'CLAP', 'HAT', 'OPEN HAT', 'TOM', 'RIM', 'CRASH', 'RISER', 'SAMPLE'];
+  const DRUMS = ['KICK', 'SNARE', 'CLAP', 'HAT', 'OPEN HAT', 'TOM', 'RIM', 'CRASH', 'RISER', 'SAMPLE', 'EMPTY'];
   const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
   const SCALES = [['MAJOR', 0xAB5], ['MINOR', 0x5AD], ['PHRYGIAN', 0x5AB], ['DORIAN', 0x6AD], ['HARMONIC', 0x9AD], ['MIN PENTA', 0x4A9], ['MAJ PENTA', 0x295], ['ALL NOTES', 0xFFF]];
   const COLORS = ['#3df2ff', '#ff4fd8', '#b6ff3d', '#ffb23d', '#8f7bff', '#ff5a5a', '#3dffb0', '#ffe93d', '#5aa8ff', '#ff8fb8', '#c8ff9a', '#ffd08f', '#b9a8ff', '#ff9a9a', '#9affdc', '#fff29a'];
   const DELAYS = ['1/16', '1/8T', '1/8', '3/16', '1/4', '3/8', '1/2', '3/4'];
-  const ARPRATES = ['1/8', '1/8.', '1/16', '1/16T', '1/32'], ARPMODES = ['UP', 'DOWN', 'UP-DOWN', 'RANDOM'], SMODES = ['ONE-SHOT', 'LOOP', 'SLICE', 'CLIP'];
+  const ARPRATES = ['1/8', '1/8.', '1/16', '1/16T', '1/32'], ARPMODES = ['UP', 'DOWN', 'UP-DOWN', 'RANDOM'], SMODES = ['ONE-SHOT', 'LOOP', 'SLICE', 'CLIP', 'GRAIN'];
 
   // what the knobs on the DEVICE page are, per kind of track: [param, label, optional list of named steps]
   const KNOBS = {
@@ -20,9 +20,10 @@ const SMD = (() => {
       [P.FENV, 'FILTER ENV'], [P.FDEC, 'ENV DECAY'], [P.SUB, 'SUB'], [P.GLIDE, 'GLIDE'],
       [P.LFORATE, 'LFO RATE'], [P.LFOCUT, 'LFO > CUT'], [P.VIB, 'VIBRATO'], [P.OCT, 'OCTAVE', ['-2', '-1', '0', '+1', '+2']],
       [P.ARP, 'ARP', ['OFF', 'ON']], [P.ARPRATE, 'ARP RATE', ARPRATES], [P.ARPOCT, 'ARP OCT', ['1', '2', '3']], [P.ARPMODE, 'ARP MODE', ARPMODES]],
-    sampler: [[P.S_START, 'START'], [P.S_END, 'END'], [P.S_GAIN, 'GAIN'], [P.CUT, 'CUTOFF'],
-      [P.S_ATK, 'ATTACK'], [P.S_REL, 'RELEASE'], [P.S_MODE, 'MODE', SMODES], [P.S_STRETCH, 'STRETCH', ['OFF', 'ON']],
-      [P.S_BARS, 'FIT BARS', ['OFF', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16']], [P.S_REV, 'REVERSE', ['OFF', 'ON']], [P.RES, 'RESO'], [P.S_ROOT, 'ROOT NOTE']],
+    sampler: [[P.S_START, 'START'], [P.S_END, 'END'], [P.S_GAIN, 'GAIN'], [P.CUT, 'CUTOFF'], [P.RES, 'RESO'], [P.S_ROOT, 'ROOT NOTE'],
+      [P.S_ATK, 'ATTACK'], [P.S_REL, 'RELEASE'], [P.S_BARS, 'FIT BARS', ['OFF', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16'], 16], [P.DRIVE, 'DRIVE'], [P.SENDA, 'DELAY'], [P.SENDB, 'REVERB']],
+    grain: [[P.G_POS, 'POSITION'], [P.G_SIZE, 'SIZE'], [P.G_DENS, 'DENSITY'], [P.G_SPRAY, 'SPRAY'], [P.G_SPREAD, 'SPREAD'], [P.G_SHATTER, 'SHATTER'],
+      [P.S_ATK, 'ATTACK'], [P.S_REL, 'RELEASE'], [P.CUT, 'CUTOFF'], [P.RES, 'RESO'], [P.S_GAIN, 'GAIN'], [P.S_ROOT, 'ROOT NOTE']],
     drum: [[P.RUMBLE, 'RUMBLE'], [P.RUMTONE, 'RUMBLE SIZE'], [P.DRIVE, 'DRIVE'], [P.CUT, 'CUTOFF']],
     fx: [[P.DRIVE, 'DRIVE'], [P.CRUSH, 'CRUSH'], [P.HPF, 'LOW CUT'], [P.CUT, 'HIGH CUT'],
       [P.SENDA, 'DELAY'], [P.SENDB, 'REVERB'], [P.DUCK, 'DUCK TO KICK'], [P.RES, 'RESO'],

@@ -149,18 +149,24 @@ JNI(void, preview)(JNIEnv* env, jobject, jfloatArray l, jfloatArray r, jint rate
 JNI(void, setReference)(JNIEnv* env, jobject, jint id) { ENG(); std::lock_guard<std::mutex> g(e->mx); auto s = e->getSmp(id); if (!s || s->n() < 1000) return; double sq = 0; const int n = s->n(), st = std::max(1, n / 400000); long c = 0; for (int i = 0; i < n; i += st) { sq += s->L[i] * s->L[i] + s->R[i] * s->R[i]; c += 2; }
   const double rms = std::sqrt(sq / std::max(1L, c)); e->refId = id; e->refGain = float(std::min(2.0, std::max(0.25, 0.18 / std::max(1e-4, rms)))); e->refPos = 0; e->version++; }
 JNI(jboolean, recStart)(JNIEnv*, jobject) { ENG(false); std::lock_guard<std::mutex> g(e->mx); if (e->recAudio.load()) return true; const size_t cap = size_t(e->sr * 300); try { e->recL.assign(cap, 0); e->recR.assign(cap, 0); } catch (...) { return false; }
-  e->recN = 0; e->recTick = e->playing ? int(e->tick / TPS) * TPS : 0; e->recPat = e->curPat; e->recAudio = true; return true; }
+  e->recN = 0; e->recTick = (e->playing && e->mode == 0) ? std::floor(e->tick / TPS) * TPS : 0; e->recAudio = true; return true; }
 // RECORD stops: the take becomes a sample on a new track, placed where recording began, with the input's effects copied across
 JNI(jint, recStop)(JNIEnv* env, jobject, jstring path) { ENG(-1); const std::string p = jstr(env, path); std::lock_guard<std::mutex> g(e->mx); if (!e->recAudio.load()) return -1; e->recAudio = false; const size_t n = e->recN; if (n < size_t(e->sr * 0.15)) { e->recL.clear(); e->recR.clear(); e->recL.shrink_to_fit(); e->recR.shrink_to_fit(); return -1; }
   auto s = std::make_shared<Sample>(); s->L.assign(e->recL.begin(), e->recL.begin() + n); s->R.assign(e->recR.begin(), e->recR.begin() + n); e->recL.clear(); e->recR.clear(); e->recL.shrink_to_fit(); e->recR.shrink_to_fit(); e->recN = 0;
   s->rate = e->sr; s->name = "TAKE " + std::to_string(++takeCount); s->path = p; Engine::writeWav(p, s->L, s->R, int(e->sr)); e->mark(); const int id = e->addSample(s); const int t = e->addTrack(T_SAMPLER);
-  if (t >= 0) { Track& T = *e->trk[t]; T.name = s->name; T.smp = id; for (int i = 1; i < I0; i++) T.P[i] = e->inP[i]; T.P[I0 + 6] = 1; T.P[I0 + 5] = 1; T.P[I0 + 9] = 60 / 127.f;
-    const int len = std::max(TPS, int(n / e->tickSamples())); e->addNote(e->recPat, t, std::min(e->recTick, e->pat[e->recPat].len() - TPS), len, 60, 1); e->sel["track"] = t; }
+  if (t >= 0) { Track& T = *e->trk[t]; T.name = s->name; T.smp = id; for (int i = 1; i < I0; i++) T.P[i] = e->inP[i]; T.P[I0 + 6] = 0.75f; T.P[I0 + 5] = 1; T.P[I0 + 9] = 60 / 127.f;
+    const int bar = int(e->recTick / BAR), off = int(e->recTick - double(bar) * BAR), len = std::max(TPS, int(n / e->tickSamples())), bars = std::max(1, std::min(MAXBARS, (off + len + BAR - 1) / BAR));
+    Block B; B.bars = bars; B.name = s->name; T.blocks.push_back(B); e->addNoteB(T.blocks[0], off, std::min(len, bars * BAR - off), 60, 1); e->place(t, bar, 0); e->sel["track"] = t; }
   e->version++; e->edits++; return id; }
-// mode 0 song, 1 pattern as a loop (also becomes a sample), 2 one track of the song. Returns the new sample's number for mode 1, otherwise 1 for success.
+// mode 0 song, 1 the block being edited as a loop (it becomes a sample on a new track), 2 one track of the song. Returns the new sample's number for mode 1, otherwise 1 for success.
 JNI(jint, render)(JNIEnv* env, jobject, jstring path, jint mode, jint arg) { ENG(0); const std::string p = jstr(env, path); e->offline = true; std::vector<float> L, R; int res = 0;
   { std::lock_guard<std::mutex> g(e->mx); if (e->render(mode, arg, L, R) && Engine::writeWav(p, L, R, int(e->sr))) { res = 1;
-      if (mode == 1) { auto s = std::make_shared<Sample>(); s->L = std::move(L); s->R = std::move(R); s->rate = e->sr; s->name = "BOUNCE " + std::to_string(++bounceCount); s->path = p; res = e->addSample(s); e->edits++; } } }
+      if (mode == 1) {   // the bounced block becomes a looping sample on a new track, placed where the block sits in the song
+        auto s = std::make_shared<Sample>(); s->L = std::move(L); s->R = std::move(R); s->rate = e->sr; s->name = "BOUNCE " + std::to_string(++bounceCount); s->path = p; Block* src = e->blockAt(e->edT, e->edB); const int bars = src ? src->bars : 1; int bar = 0;
+        if (e->edT < e->nT) for (auto& q : e->trk[e->edT]->pl) if (q.b == e->edB) { bar = q.bar; break; }
+        e->mark(); res = e->addSample(s); const int t = e->addTrack(T_SAMPLER);
+        if (t >= 0) { Track& T = *e->trk[t]; T.name = s->name; T.smp = res; T.P[I0 + 6] = 0.75f; Block B; B.bars = bars; B.name = s->name; T.blocks.push_back(B); e->addNoteB(T.blocks[0], 0, bars * BAR, 60, 1); e->place(t, bar, 0); e->sel["track"] = t; }
+        e->version++; e->edits++; } } }
   e->offline = false; return res; }
 JNI(jintArray, midiPoll)(JNIEnv* env, jobject) { ENG(nullptr); const int w = e->mqW.load(), r = e->mqR.load(); int n = w - r; if (n <= 0) return nullptr; if (n > 256) n = 256; jint buf[256]; for (int i = 0; i < n; i++) buf[i] = jint(e->mq[(r + i) & 511]); e->mqR.store(r + n); jintArray a = env->NewIntArray(n); env->SetIntArrayRegion(a, 0, n, buf); return a; }
 JNI(jstring, info)(JNIEnv* env, jobject) {

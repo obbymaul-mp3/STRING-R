@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
     printf("rendered %.1f s in %.0f ms (%.1fx realtime), peak %.3f, rms %.1f dB, integrated %.1f LUFS, %s\n", L.size() / 48000.0, ms, L.size() / 48.0 / ms, pk, 10 * std::log10(sq / (2 * L.size()) + 1e-12), e.loud.integ.load(), bad ? "NaN FOUND" : "finite");
     if (argc > 3) Engine::writeWav(argv[3], L, R, 48000);
     for (int t = 0; t < e.nT; t++) { std::vector<float> a, b; e.render(2, t, a, b); float p = 0; for (float v : a) p = std::max(p, std::fabs(v)); printf("  track %d %-10s peak %.3f\n", t, e.trk[t]->name.c_str(), p); }
-    e.exec("mark"); e.exec("n 0 0 0 24 0 1"); e.exec("undo"); printf("undo %s\n", e.dump() == d2 ? "ok" : "DIFFERS"); std::string st = e.state(); printf("state %zu bytes\n", st.size());
+    e.exec("mark"); e.exec("n 0 0 0 24 5 1"); e.exec("undo"); printf("undo %s\n", e.dump() == d2 ? "ok" : "DIFFERS"); std::string st = e.state(); printf("state %zu bytes\n", st.size());
     return bad || d1 != d2;
   }
   if (argc > 2) e.load(slurp(argv[2]));

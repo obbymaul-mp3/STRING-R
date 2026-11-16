@@ -7,13 +7,13 @@
 namespace sm {
 struct Sample { std::vector<float> L, R; std::string name, path; float rate = 48000; int n() const { return int(L.size()); } };
 
-enum { D_KICK, D_SNARE, D_CLAP, D_CHAT, D_OHAT, D_TOM, D_RIM, D_CRASH, D_RISER, D_SAMPLE, D_COUNT };
+enum { D_KICK, D_SNARE, D_CLAP, D_CHAT, D_OHAT, D_TOM, D_RIM, D_CRASH, D_RISER, D_SAMPLE, D_EMPTY, D_COUNT };
 struct Pad { int type = D_KICK; float tune = 0.5f, decay = 0.5f, level = 0.8f, pan = 0.5f, tone = 0.5f; int smp = -1; };
 
 struct DrumVoice {
   bool on = false; int type = 0; float t = 0, ph = 0, vel = 1, tune = .5f, decay = .5f, tone = .5f, sr = 48000, mph[6] = {0}; SVF f1, f2; Rng rng; const Sample* smp = nullptr; double sp = 0, srate = 1;
   void trig(const Pad& p, float v, float s, const Sample* sm_) {
-    on = true; type = p.type; t = 0; ph = 0; vel = v; tune = p.tune; decay = p.decay; tone = p.tone; sr = s; smp = sm_; sp = 0; f1.reset(); f2.reset();
+    if (p.type == D_EMPTY) { on = false; return; } on = true; type = p.type; t = 0; ph = 0; vel = v; tune = p.tune; decay = p.decay; tone = p.tone; sr = s; smp = sm_; sp = 0; f1.reset(); f2.reset();
     if (type == D_SAMPLE) { if (!smp || smp->n() < 2) { on = false; return; } srate = std::pow(2.0, (tune - 0.5) * 2.0) * smp->rate / sr; }
     if (type == D_SNARE) f1.set(1200 + tone * 3000, 0.7f, sr); if (type == D_CLAP) f1.set(900 + tune * 1400, 1.6f, sr);
     if (type == D_CHAT || type == D_OHAT) f1.set(6000 + tone * 4000, 0.8f, sr); if (type == D_CRASH) f1.set(3000 + tone * 4000, 0.7f, sr); if (type == D_RIM) f1.set(700 + tune * 1600, 3, sr);
@@ -53,6 +53,8 @@ struct SynthVoice {
 struct SampVoice {
   bool on = false; int pitch = 60, stage = 0, gate = -1; float vel = 1, aenv = 0; double pos = 0, rate = 1, start = 0, end = 0, adv = 1; bool loop = false, stretch = false, rev = false, oneshot = false; uint32_t order = 0;
   double gb[2] = {0, 0}; float gp[2] = {0, 0.5f}; std::shared_ptr<Sample> s;
+  // grain mode: a cloud of short overlapping pieces
+  struct G { bool on = false; double pos = 0, rate = 1; float ph = 0, inc = 0, gl = 1, gr = 1; } g[12]; float gtimer = 0; double scan = 0; bool grain = false;
 };
 
 inline float polyblep(double t, double dt) { if (t < dt) { t /= dt; return float(t + t - t * t - 1); } if (t > 1 - dt) { t = (t - 1) / dt; return float(t * t + t + t + 1); } return 0; }

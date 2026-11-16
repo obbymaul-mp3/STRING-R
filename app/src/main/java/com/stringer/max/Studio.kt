@@ -48,6 +48,7 @@ object Studio {
     private fun dir(name: String): File { val d = File(base(), name); d.mkdirs(); return d }
     private fun projectsDir() = dir("projects")
     private fun takesDir() = dir("takes")
+    private fun kitsDir() = dir("kits")
     private fun safe(name: String) = name.replace(Regex("[^A-Za-z0-9 ._-]"), " ").trim().ifEmpty { "SONG" }
     private fun stamp() = SimpleDateFormat("yyyy-MM-dd HH.mm.ss", Locale.US).format(Date())
 
@@ -145,7 +146,7 @@ object Studio {
                     target == "ref" -> { Native.setReference(id); say("REFERENCE LOADED") }
                     target.startsWith("pad ") -> { Native.cmd("pad $selTrack ${target.substring(4)} smp $id"); say("ON THE PAD") }
                     target == "track" -> { Native.cmd("trk smp $selTrack $id"); Native.cmd("trk name $selTrack " + q(name)); say("LOADED") }
-                    else -> { val t = Native.cmd("trk add 2").toIntOrNull() ?: -1; if (t >= 0) { Native.cmd("trk smp $t $id"); Native.cmd("trk name $t " + q(name)); Native.cmd("sel track $t"); selTrack = t; say("NEW SAMPLER TRACK") } else say("NO ROOM FOR ANOTHER TRACK") }
+                    else -> { val t = Native.cmd("trk add 2").toIntOrNull() ?: -1; if (t >= 0) { Native.cmd("trk smp $t $id"); Native.cmd("trk name $t " + q(name)); Native.cmd("blk add $t 4 \"BLOCK 1\""); Native.cmd("n $t 0 0 96 60 0.9"); Native.cmd("pl add $t 0 0"); Native.cmd("ed $t 0"); Native.cmd("sel track $t"); selTrack = t; say("NEW TRACK · ITS BLOCK IS AT BAR 1") } else say("NO ROOM FOR ANOTHER TRACK") }
                 }
             } catch (e: Exception) { android.util.Log.e("StringerMax", "load", e); say("COULD NOT LOAD") } finally { busy = "" }
         }.start()
@@ -160,6 +161,41 @@ object Studio {
                 val out = File(dir("imports"), safe(name)); c.contentResolver.openInputStream(uri)?.use { i -> out.outputStream().use { o -> i.copyTo(o) } }
                 load(out.absolutePath, target)
             } catch (e: Exception) { android.util.Log.e("StringerMax", "import", e); say("COULD NOT READ THAT FILE") }
+        }.start()
+    }
+
+    // ---------------------------------------------------------------- your own drum kits: the pads of a drum track, saved by name
+    fun kits(): String {
+        val sb = StringBuilder("[")
+        val list = kitsDir().listFiles { f -> f.name.endsWith(".kit") }?.sortedByDescending { it.lastModified() } ?: emptyList()
+        list.forEachIndexed { i, f ->
+            var pads = 0; var smp = 0
+            try { for (line in f.readLines()) { val a = line.split(' ', limit = 8); if (a.size >= 8 && a[0] != "x") { if (a[1] != "10") pads++; if (a[7].length > 2) smp++ } } } catch (e: Exception) {}
+            if (i > 0) sb.append(','); sb.append("{\"n\":").append(q(f.name.removeSuffix(".kit"))).append(",\"pads\":").append(pads).append(",\"smp\":").append(smp).append(",\"t\":").append(f.lastModified() / 1000).append('}')
+        }
+        return sb.append("]").toString()
+    }
+    fun saveKit(name: String) {
+        val n = safe(name); try { val text = Native.cmd("kitdump $selTrack"); if (text.length < 10) { say("SELECT A DRUM TRACK FIRST"); return }; File(kitsDir(), "$n.kit").writeText(text); Native.cmd("trk name $selTrack " + q(n)); Native.cmd("bump"); say("KIT SAVED  $n") } catch (e: Exception) { android.util.Log.e("StringerMax", "kit save", e); say("COULD NOT SAVE THE KIT") }
+    }
+    fun deleteKit(name: String) { try { File(kitsDir(), safe(name) + ".kit").delete(); say("KIT DELETED") } catch (e: Exception) {} }
+    fun loadKit(name: String) {
+        val f = File(kitsDir(), safe(name) + ".kit"); if (!f.exists()) { say("KIT NOT FOUND"); return }
+        val t = selTrack; busy = "LOADING"
+        Thread {
+            try {
+                Native.cmd("mark"); var lost = 0
+                for (line in f.readLines()) {
+                    val a = line.split(' ', limit = 8)
+                    if (a.isNotEmpty() && a[0] == "x" && a.size >= 3) { Native.cmd("p $t 16 ${a[1]}"); Native.cmd("p $t 6 ${a[2]}"); continue }
+                    if (a.size < 8) continue
+                    val path = a[7].trim().removeSurrounding("\"").replace("\\\\", "\\"); var id = -1; var type = a[1]
+                    if (path.isNotEmpty()) { val p = if (File(path).exists()) Decode.file(path, 60) else null
+                        if (p != null) id = Native.addSample(File(path).name.substringBeforeLast('.').uppercase(Locale.US).take(24), path, p.l, p.r, p.rate) else { lost++; type = "10" } }
+                    Native.cmd("pad $t ${a[0]} $type ${a[2]} ${a[3]} ${a[4]} ${a[5]} ${a[6]} $id")
+                }
+                Native.cmd("trk name $t " + q(safe(name))); Native.cmd("bump"); say(if (lost > 0) "$lost SOUNDS OF THIS KIT WERE NOT FOUND" else "KIT LOADED")
+            } catch (e: Exception) { android.util.Log.e("StringerMax", "kit load", e); say("COULD NOT LOAD THE KIT") } finally { busy = "" }
         }.start()
     }
 
@@ -179,7 +215,7 @@ object Studio {
             c.contentResolver.openOutputStream(uri)?.use { o -> src.inputStream().use { it.copyTo(o) } }; true
         } catch (e: Exception) { android.util.Log.e("StringerMax", "publish", e); false }
     }
-    /** "song": the whole song as one WAV. "stems": one WAV per track. "bounce": the current pattern becomes a loop on a new sampler track. */
+    /** "song": the whole song as one WAV. "stems": one WAV per track. "bounce": the block being edited becomes a loop on a new sampler track. */
     fun export(kind: String, trackNames: String) {
         if (busy.isNotEmpty()) return
         busy = if (kind == "bounce") "BOUNCING" else "EXPORTING"
@@ -190,10 +226,7 @@ object Studio {
                 else if (kind == "stems") { val names = trackNames.split('|'); var n = 0; val when_ = stamp()
                     names.forEachIndexed { t, nm -> if (nm.isNotEmpty()) { busy = "STEM ${t + 1} OF ${names.size}"; if (Native.render(tmp.absolutePath, 2, t) > 0 && publish(tmp, "$title $when_ - ${t + 1} ${safe(nm)}.wav")) n++ } }
                     say("$n STEMS SAVED IN MUSIC / STRINGERMAX") }
-                else { val f = File(takesDir(), "BOUNCE " + stamp() + ".wav"); val id = Native.render(f.absolutePath, 1, 0)
-                    if (id > 0) { Native.cmd("mark"); val t = Native.cmd("trk add 2").toIntOrNull() ?: -1
-                        if (t >= 0) { Native.cmd("trk smp $t $id"); Native.cmd("trk name $t \"BOUNCE\""); Native.cmd("p $t 22 1"); Native.cmd("sel track $t"); selTrack = t; Native.cmd("bump"); say("BOUNCED TO A NEW TRACK") } else say("BOUNCED TO YOUR SAMPLES") }
-                    else say("BOUNCE FAILED") }
+                else { val f = File(takesDir(), "BOUNCE " + stamp() + ".wav"); val id = Native.render(f.absolutePath, 1, 0); Native.cmd("bump"); say(if (id > 0) "BOUNCED TO A NEW TRACK" else "BOUNCE FAILED") }
                 tmp.delete()
             } catch (e: Exception) { android.util.Log.e("StringerMax", "export", e); say("EXPORT FAILED") } finally { busy = "" }
         }.start()

@@ -1,4 +1,4 @@
-// Stringer Max: the whole workstation. Tracks, patterns, the song, the mixer, the master, and the text commands that drive it.
+// Stringer Max: the whole workstation. Tracks, their blocks of notes, the song timeline, the mixer, the master, and the text commands that drive it.
 #pragma once
 #include <array>
 #include <cstdio>
@@ -8,7 +8,7 @@
 #include "sm_voices.h"
 
 namespace sm {
-constexpr int MAXT = 16, NPAT = 32, NP = 36, CH = 32, TPS = 24, MAXSTEPS = 128, NM = 16;
+constexpr int MAXT = 16, NP = 36, CH = 32, TPS = 24, BAR = 384, MAXBARS = 64, MAXSTEPS = MAXBARS * 16, NM = 16, NPADS = 16;
 enum { VOL, PAN, CUT, RES, HPF, DRIVE, CRUSH, SENDA, SENDB, DUCK, EQLO, EQMID, EQHI, TUNE, SHIFT, WIDTH, I0 };
 enum { T_DRUM, T_SYNTH, T_SAMPLER, T_MIDI };
 enum { M_DTIME, M_DFB, M_DTONE, M_RSIZE, M_RDAMP, M_LOW, M_HIGH, M_GLUE, M_SAT, M_WIDE, M_LOUD, M_VOL };
@@ -17,7 +17,9 @@ static const int SCALES[8] = {0xAB5, 0x5AD, 0x5AB, 0x6AD, 0x9AD, 0x4A9, 0x295, 0
 struct Note { int start, len, pitch; float vel; };
 struct Lane { int param; std::vector<float> v; };
 struct Clip { std::vector<Note> notes; std::vector<Lane> lanes; };
-struct Pattern { int bars = 1; Clip clips[MAXT]; int len() const { return bars * 16 * TPS; } };
+// a block is a few bars of notes belonging to one track; a placement puts a block at a bar of the song
+struct Block { std::string name = "BLOCK"; int bars = 1; Clip c; int len() const { return bars * BAR; } };
+struct Place { int bar, b; };
 
 // one channel of the mixer: tuning, drive, crush, filters, EQ, level, pan
 struct Strip {
@@ -40,8 +42,8 @@ struct Strip {
 };
 
 struct Track {
-  int type = T_SYNTH, eng = 0, smp = -1, midiCh = 0; std::string name = "TRACK"; bool mute = false, solo = false; float P[NP], Pe[NP]; Pad pads[8];
-  Strip strip; SynthVoice sv[8]; DrumVoice dv[8]; SampVoice pv[8]; uint32_t order = 0; float lfo = 0, kickEnv = 0, lastHz = 0; int vowelSeq = 0, arpIdx = 0;
+  int type = T_SYNTH, eng = 0, smp = -1, midiCh = 0; std::string name = "TRACK"; bool mute = false, solo = false; float P[NP], Pe[NP]; Pad pads[NPADS]; std::vector<Block> blocks; std::vector<Place> pl;
+  Strip strip; SynthVoice sv[8]; DrumVoice dv[NPADS]; SampVoice pv[8]; uint32_t order = 0; float lfo = 0, kickEnv = 0, lastHz = 0; int vowelSeq = 0, arpIdx = 0;
   std::unique_ptr<Reverb> rum; SVF rumLp; struct MN { int pitch, left; }; std::vector<MN> mnotes; std::vector<int> held;
   Track() { defaults(); }
   void defaults() { for (int i = 0; i < NP; i++) P[i] = 0; P[VOL] = 0.75f; P[PAN] = 0.5f; P[CUT] = 1; P[RES] = 0.15f; P[EQLO] = P[EQMID] = P[EQHI] = 0.5f; P[SHIFT] = 0.5f; std::memcpy(Pe, P, sizeof P); }
@@ -49,12 +51,12 @@ struct Track {
 };
 
 struct Engine {
-  float sr = 48000; std::mutex mx; std::atomic<bool> offline{false}; std::atomic<int> version{1}, edits{0};
-  std::unique_ptr<Track> trk[MAXT]; int nT = 0; Pattern pat[NPAT]; std::vector<int> song; std::string title = "UNTITLED";
-  float bpm = 140, swing = 0, M[NM], perf[4] = {0.5f, 0, 0, 0}; int keyRoot = 9, scale = 1, curPat = 0, songPos = 0; double tick = 0; bool playing = false, songMode = false, recOn = false, loopSong = true, metro = false, ended = false, oneShot = false;
+  float sr = 48000; std::mutex mx; std::atomic<bool> offline{false}; std::atomic<int> version{1}, edits{0}, nTa{0}, barsA{1}; std::atomic<float> pk[MAXT + 1];
+  std::unique_ptr<Track> trk[MAXT]; int nT = 0; std::string title = "UNTITLED";
+  float bpm = 140, swing = 0, M[NM], perf[4] = {0.5f, 0, 0, 0}; int keyRoot = 9, scale = 1, mode = 0, edT = 0, edB = 0, loopA = 0, loopB = 4; double tick = 0; bool playing = false, recOn = false, loopOn = false, metro = false, ended = false, oneShot = false;
   std::map<std::string, int> sel; std::vector<std::shared_ptr<Sample>> smp;
   // live input
-  float inP[NP]; Strip inStrip; bool inMon = false; std::vector<float> recL, recR; size_t recN = 0; std::atomic<bool> recAudio{false}; int recTick = 0, recPat = 0; std::atomic<float> inPeak{0};
+  float inP[NP]; Strip inStrip; bool inMon = false; std::vector<float> recL, recR; size_t recN = 0; std::atomic<bool> recAudio{false}; double recTick = 0; std::atomic<float> inPeak{0};
   // buses and master
   Delay delay; Reverb reverb; Biquad mLow[2], mHigh[2]; float mEqV[2] = {-9, -9}; Limiter lim; Loudness loud; float glueEnv = 0, duckEnv = 0; SVF pfL, pfR, phL, phR; std::atomic<float> glueGr{0}, outPk[2];
   std::vector<float> pbL, pbR; int pbW = 0; double pbR_ = 0, tapeRate = 1; int stutLen = 0, stutPos = 0, stutStart = 0; bool stutOn = false, halfOn = false, tapeOn = false; float perfMix = 0; int metroLeft = 0; float metroPh = 0, metroHz = 1000;
@@ -64,28 +66,28 @@ struct Engine {
   std::shared_ptr<Sample> pre; double prePos = 0; bool preOn = false;
   // midi out, undo, live recording
   uint32_t mq[512]; std::atomic<int> mqW{0}, mqR{0}; std::vector<std::string> undoS, redoS;
-  struct Pend { int t, pitch, start; float vel; }; std::vector<Pend> pend; std::vector<std::array<int, 3>> suppress; std::atomic<float> cpu{0};
+  struct Pend { int t, b, pitch, start; float vel; }; std::vector<Pend> pend; std::vector<std::array<int, 3>> suppress; std::atomic<float> cpu{0};
 
-  explicit Engine(float rate) : sr(rate) { delay.init(sr); reverb.init(sr); lim.init(sr); loud.init(sr); pbL.assign(size_t(sr * 4), 0); pbR = pbL; outPk[0] = 0; outPk[1] = 0; resetProject(); }
+  explicit Engine(float rate) : sr(rate) { delay.init(sr); reverb.init(sr); lim.init(sr); loud.init(sr); pbL.assign(size_t(sr * 4), 0); pbR = pbL; outPk[0] = 0; outPk[1] = 0; for (auto& x : pk) x = 0; resetProject(); }
 
   // ---------------------------------------------------------------- the project
   void resetProject() {
-    for (auto& t : trk) t.reset(); nT = 0; for (auto& p : pat) p = Pattern(); song.clear(); bpm = 140; swing = 0; keyRoot = 9; scale = 1; curPat = 0; songPos = 0; tick = 0; playing = false; songMode = false; title = "UNTITLED";
+    for (auto& t : trk) t.reset(); nT = 0; bpm = 140; swing = 0; keyRoot = 9; scale = 1; mode = 0; edT = edB = 0; loopA = 0; loopB = 4; loopOn = false; tick = 0; playing = false; title = "UNTITLED";
     const float m[NM] = {0.4f, 0.45f, 0.5f, 0.6f, 0.4f, 0.5f, 0.5f, 0.3f, 0.15f, 0.5f, 0.35f, 0.8f}; for (int i = 0; i < NM; i++) M[i] = i < 12 ? m[i] : 0;
     Track d; std::memcpy(inP, d.P, sizeof inP); inP[SENDB] = 0.15f; pend.clear(); suppress.clear();
   }
   int addTrack(int type) {
     if (nT >= MAXT) return -1; trk[nT].reset(new Track()); Track& T = *trk[nT]; T.type = type; float* P = T.P;
     static const char* nm[4] = {"DRUMS", "SYNTH", "SAMPLER", "FM-1"}; T.name = nm[type & 3];
-    if (type == T_DRUM) { const int ty[8] = {D_KICK, D_SNARE, D_CLAP, D_CHAT, D_OHAT, D_TOM, D_RIM, D_CRASH}; for (int i = 0; i < 8; i++) { T.pads[i] = Pad(); T.pads[i].type = ty[i]; } T.pads[3].level = 0.55f; T.pads[4].level = 0.5f; T.pads[7].level = 0.5f; P[I0] = 0; P[I0 + 1] = 0.5f; }
+    if (type == T_DRUM) { const int ty[8] = {D_KICK, D_SNARE, D_CLAP, D_CHAT, D_OHAT, D_TOM, D_RIM, D_CRASH}; for (int i = 0; i < NPADS; i++) { T.pads[i] = Pad(); T.pads[i].type = i < 8 ? ty[i] : int(D_EMPTY); } T.pads[3].level = 0.55f; T.pads[4].level = 0.5f; T.pads[7].level = 0.5f; P[I0] = 0; P[I0 + 1] = 0.5f; }
     if (type == T_SYNTH) { P[I0] = 0.02f; P[I0 + 1] = 0.45f; P[I0 + 2] = 0.7f; P[I0 + 3] = 0.3f; P[I0 + 4] = 0.45f; P[I0 + 5] = 0.3f; P[I0 + 6] = 0.3f; P[I0 + 7] = 0.4f; P[I0 + 9] = 0.6f; P[I0 + 10] = 0.5f; P[I0 + 12] = 0.5f; P[I0 + 15] = 0.4f; P[CUT] = 0.8f; }
-    if (type == T_SAMPLER) { P[I0] = 0; P[I0 + 3] = 0.1f; P[I0 + 4] = 0; P[I0 + 5] = 1; P[I0 + 9] = 60 / 127.f; P[I0 + 11] = 0.5f; }
+    if (type == T_SAMPLER) { P[I0] = 0; P[I0 + 3] = 0.1f; P[I0 + 4] = 0; P[I0 + 5] = 1; P[I0 + 9] = 60 / 127.f; P[I0 + 11] = 0.5f; P[28] = 0.3f; P[29] = 0.4f; P[30] = 0.6f; P[31] = 0.3f; P[32] = 0.6f; }
     std::memcpy(T.Pe, P, sizeof T.P); return nT++;
   }
   void delTrack(int t) {
     if (t < 0 || t >= nT) return; allOff();
     for (int i = t; i < nT - 1; i++) trk[i] = std::move(trk[i + 1]); trk[nT - 1].reset(); nT--;
-    for (auto& p : pat) { for (int i = t; i < MAXT - 1; i++) p.clips[i] = std::move(p.clips[i + 1]); p.clips[MAXT - 1] = Clip(); }
+    if (edT >= nT) edT = std::max(0, nT - 1); edB = 0;
   }
   int addSample(std::shared_ptr<Sample> s, int id = -1) { if (id < 0) { id = int(smp.size()); smp.push_back(nullptr); } if (id >= int(smp.size())) smp.resize(id + 1); smp[id] = std::move(s); version++; return id; }
   std::shared_ptr<Sample> getSmp(int id) { return id >= 0 && id < int(smp.size()) ? smp[id] : nullptr; }
@@ -96,7 +98,7 @@ struct Engine {
   void midiOut(int st, int a, int b) { const int w = mqW.load(); mq[w & 511] = uint32_t(st) | (uint32_t(a) << 8) | (uint32_t(b) << 16); mqW.store(w + 1); }
   void noteOn(int t, int pitch, float vel, int gate) {
     if (t < 0 || t >= nT || pitch < 0 || pitch > 127) return; Track& T = *trk[t]; const float* P = T.Pe;
-    if (T.type == T_DRUM) { const int pd = pitch < 8 ? pitch : ((pitch - 36) % 8 + 8) % 8; const Pad& p = T.pads[pd]; auto s = p.type == D_SAMPLE ? getSmp(p.smp) : nullptr;
+    if (T.type == T_DRUM) { const int pd = pitch < NPADS ? pitch : ((pitch - 36) % NPADS + NPADS) % NPADS; const Pad& p = T.pads[pd]; auto s = p.type == D_SAMPLE ? getSmp(p.smp) : nullptr;
       if (p.type == D_CHAT) for (auto& v : T.dv) if (v.type == D_OHAT) v.on = false;
       T.dv[pd].trig(p, vel, sr, s.get()); if (p.type == D_KICK) { duckEnv = 1; T.kickEnv = 1; } return; }
     if (T.type == T_MIDI) { for (auto& m : T.mnotes) if (m.pitch == pitch) { midiOut(0x80 | T.midiCh, pitch, 0); m.left = -2; } T.mnotes.erase(std::remove_if(T.mnotes.begin(), T.mnotes.end(), [](const Track::MN& m) { return m.left == -2; }), T.mnotes.end());
@@ -111,9 +113,9 @@ struct Engine {
     auto s = getSmp(T.smp); if (!s || s->n() < 4) return;
     SampVoice* v = nullptr; for (auto& x : T.pv) if (x.on && x.pitch == pitch) { v = &x; break; } if (!v) for (auto& x : T.pv) if (!x.on) { v = &x; break; }
     if (!v) { v = &T.pv[0]; for (auto& x : T.pv) if (x.order < v->order) v = &x; }
-    const int N = s->n(), mode = int(std::lround(P[I0 + 6] * 3)), root = int(std::lround(P[I0 + 9] * 127)), bars = int(std::lround(P[I0 + 8] * 16)); double a = clampf(P[I0 + 4], 0, 1) * N, b = clampf(P[I0 + 5], 0, 1) * N; if (b < a + 16) b = std::min<double>(N, a + 16);
+    const int N = s->n(), mode = int(std::lround(P[I0 + 6] * 4)), root = int(std::lround(P[I0 + 9] * 127)), bars = int(std::lround(P[I0 + 8] * 16)); double a = clampf(P[I0 + 4], 0, 1) * N, b = clampf(P[I0 + 5], 0, 1) * N; if (b < a + 16) b = std::min<double>(N, a + 16);
     double rate = s->rate / sr; if (mode == 2) { const int k = ((pitch - 60) % 16 + 16) % 16; const double w = (b - a) / 16; a += k * w; b = a + w; } else rate *= std::pow(2.0, (pitch - root) / 12.0);
-    v->on = true; v->s = s; v->pitch = pitch; v->vel = vel; v->gate = gate; v->stage = 1; v->aenv = P[I0] < 0.005f ? 1 : 0; v->order = ++T.order; v->start = a; v->end = b - 1; v->rate = rate; v->rev = P[I0 + 10] > 0.5f; v->loop = mode == 1; v->oneshot = mode == 0;
+    v->on = true; v->s = s; v->pitch = pitch; v->vel = vel; v->gate = gate; v->stage = 1; v->aenv = P[I0] < 0.005f ? 1 : 0; v->order = ++T.order; v->start = a; v->end = b - 1; v->rate = rate; v->rev = P[I0 + 10] > 0.5f; v->loop = mode == 1 || mode == 4; v->oneshot = mode == 0; v->grain = mode == 4; v->gtimer = 0; v->scan = 0; for (auto& g : v->g) g.on = false;
     v->stretch = P[I0 + 7] > 0.5f; v->adv = bars > 0 ? (b - a) / (bars * 16.0 * TPS * tickSamples()) : s->rate / sr; v->pos = v->rev ? v->end : a; v->gb[0] = v->gb[1] = v->pos; v->gp[0] = 0; v->gp[1] = 0.5f;
   }
   void noteOff(int t, int pitch) {
@@ -126,41 +128,55 @@ struct Engine {
   double tickSamples() const { return sr * 60.0 / (bpm * 96.0); }
 
   // ---------------------------------------------------------------- the sequencer
-  void seqRange(double a, double b) {
-    Pattern& p = pat[curPat]; const double ts = tickSamples(); const int plen = p.len();
-    if (metro) for (int q = int(std::ceil(a / 96)); q * 96 < b; q++) { metroLeft = int(sr * 0.03f); metroHz = (q % 4 == 0) ? 1600.f : 1000.f; }
-    for (int t = 0; t < nT; t++) {
-      Track& T = *trk[t]; Clip& c = p.clips[t]; if (c.notes.empty()) continue;
-      if (T.type == T_SYNTH && T.Pe[I0 + 11] > 0.5f) {   // arpeggiator: the notes in the pattern are the held chord
-        static const int div[5] = {48, 36, 24, 16, 12}; const int st = div[std::min(4, int(T.Pe[I0 + 12] * 4.99f))], octs = 1 + int(T.Pe[I0 + 13] * 2.99f), mode = int(T.Pe[I0 + 14] * 3.99f);
-        for (int q = int(std::ceil(a / st)); q * st < b; q++) { const int bt = q * st; int hp[16], hn = 0; float hv = 0.8f;
-          for (auto& n : c.notes) if (n.start <= bt && bt < n.start + n.len && hn < 16) { hp[hn++] = n.pitch; hv = n.vel; }
-          if (!hn) { T.arpIdx = 0; continue; } std::sort(hp, hp + hn); const int total = hn * octs; int k = T.arpIdx++ % (mode == 2 ? std::max(1, total * 2 - 2) : total);
-          if (mode == 1) k = total - 1 - k; else if (mode == 2) { if (k >= total) k = 2 * total - 2 - k; } else if (mode == 3) k = int(T.dv[0].rng.uni() * total) % total;
-          noteOn(t, hp[k % hn] + 12 * (k / hn), hv, std::max(64, int(st * 0.8 * ts))); }
-        continue; }
-      for (auto& n : c.notes) { double s = n.start; if (swing > 0 && n.start % TPS == 0 && (n.start / TPS) % 2 == 1) s += swing * 12;
-        if (s >= plen) s = plen - 1; if (s >= a && s < b) { bool skip = false; for (size_t i = 0; i < suppress.size(); i++) if (suppress[i][0] == t && suppress[i][1] == n.pitch && suppress[i][2] == n.start) { suppress.erase(suppress.begin() + i); skip = true; break; }
-          if (!skip) noteOn(t, n.pitch, n.vel, std::max(64, int(n.len * ts))); } }
-    }
+  Block* blockAt(int t, int b) { return t >= 0 && t < nT && b >= 0 && b < int(trk[t]->blocks.size()) ? &trk[t]->blocks[b] : nullptr; }
+  int songBars() const { int m = 1; for (int t = 0; t < nT; t++) for (auto& p : trk[t]->pl) if (p.b >= 0 && p.b < int(trk[t]->blocks.size())) m = std::max(m, p.bar + trk[t]->blocks[p.b].bars); return m; }
+  // the block a track is playing at a position, and where inside that block the position falls
+  Block* playingBlock(int t, double pos, double& local) {
+    if (t < 0 || t >= nT) return nullptr;
+    if (mode == 1) { if (t != edT) return nullptr; Block* B = blockAt(edT, edB); if (B) local = pos; return B; }
+    for (auto& p : trk[t]->pl) { Block* B = blockAt(t, p.b); if (!B) continue; const double s = double(p.bar) * BAR; if (pos >= s && pos < s + B->len()) { local = pos - s; return B; } }
+    return nullptr; }
+  // the notes of one block that start between a and b (in the block's own ticks)
+  void seqBlock(int t, Block& B, double a, double b) {
+    Track& T = *trk[t]; Clip& c = B.c; if (c.notes.empty()) return; const double ts = tickSamples(); const int plen = B.len();
+    if (T.type == T_SYNTH && T.Pe[I0 + 11] > 0.5f) {   // arpeggiator: the notes in the block are the held chord
+      static const int div[5] = {48, 36, 24, 16, 12}; const int st = div[std::min(4, int(T.Pe[I0 + 12] * 4.99f))], octs = 1 + int(T.Pe[I0 + 13] * 2.99f), md = int(T.Pe[I0 + 14] * 3.99f);
+      for (int q = int(std::ceil(a / st)); q * st < b; q++) { const int bt = q * st; int hp[16], hn = 0; float hv = 0.8f;
+        for (auto& n : c.notes) if (n.start <= bt && bt < n.start + n.len && hn < 16) { hp[hn++] = n.pitch; hv = n.vel; }
+        if (!hn) { T.arpIdx = 0; continue; } std::sort(hp, hp + hn); const int total = hn * octs; int k = T.arpIdx++ % (md == 2 ? std::max(1, total * 2 - 2) : total);
+        if (md == 1) k = total - 1 - k; else if (md == 2) { if (k >= total) k = 2 * total - 2 - k; } else if (md == 3) k = int(T.dv[0].rng.uni() * total) % total;
+        noteOn(t, hp[k % hn] + 12 * (k / hn), hv, std::max(64, int(st * 0.8 * ts))); }
+      return; }
+    for (auto& n : c.notes) { double s = n.start; if (swing > 0 && n.start % TPS == 0 && (n.start / TPS) % 2 == 1) s += swing * 12;
+      if (s >= plen) s = plen - 1; if (s >= a && s < b) { bool skip = false; for (size_t i = 0; i < suppress.size(); i++) if (suppress[i][0] == t && suppress[i][1] == n.pitch && suppress[i][2] == n.start) { suppress.erase(suppress.begin() + i); skip = true; break; }
+        if (!skip) noteOn(t, n.pitch, n.vel, std::max(64, int(n.len * ts))); } }
   }
+  void seqRange(double a, double b) {
+    if (metro) for (int q = int(std::ceil(a / 96)); q * 96 < b; q++) { metroLeft = int(sr * 0.03f); metroHz = (q % 4 == 0) ? 1600.f : 1000.f; }
+    if (mode == 1) { if (Block* B = blockAt(edT, edB)) seqBlock(edT, *B, a, b); return; }
+    for (int t = 0; t < nT; t++) for (size_t i = 0; i < trk[t]->pl.size(); i++) { const Place p = trk[t]->pl[i]; Block* B = blockAt(t, p.b); if (!B) continue; const double s = double(p.bar) * BAR, e = s + B->len(); if (b <= s || a >= e) continue; seqBlock(t, *B, std::max(a, s) - s, std::min(b, e) - s); }
+  }
+  // SONG plays the timeline (round the loop bars if the loop is on); BLOCK plays only the block being edited, round and round
   void advance(int n) {
-    if (!playing) return; const double dt = n / tickSamples(); double a = tick, b = tick + dt; int plen = pat[curPat].len();
-    if (b < plen) { seqRange(a, b); tick = b; return; }
-    seqRange(a, plen); b -= plen;
-    if (songMode && !song.empty()) { songPos++; if (songPos >= int(song.size())) { if (!loopSong) { playing = false; ended = true; allOff(); return; } songPos = 0; } curPat = song[songPos]; version++; }
-    else if (oneShot) { playing = false; ended = true; allOff(); return; }
-    seqRange(0, b); tick = b;
+    if (!playing) return; const double dt = n / tickSamples(); double a = tick, b = tick + dt, start = 0, end; bool wrap;
+    if (mode == 1) { Block* B = blockAt(edT, edB); end = B ? B->len() : BAR; wrap = !oneShot; }
+    else if (loopOn && loopB > loopA) { start = double(loopA) * BAR; end = double(loopB) * BAR; wrap = true; if (a < start || a >= end) { a = start; b = a + dt; } }
+    else { end = double(songBars()) * BAR; wrap = false; }
+    if (a >= end) { a = start; b = a + dt; }
+    if (b < end) { seqRange(a, b); tick = b; return; }
+    seqRange(a, end);
+    if (!wrap) { playing = false; ended = true; allOff(); tick = 0; version++; return; }
+    b = start + std::min(b - end, end - start - 1.0); seqRange(start, b); tick = b;
   }
   void applyAuto() {
-    const int step = int(tick / TPS); const Pattern& p = pat[curPat];
-    for (int t = 0; t < nT; t++) { Track& T = *trk[t]; std::memcpy(T.Pe, T.P, sizeof T.P); if (!playing) continue; for (auto& l : p.clips[t].lanes) if (step < int(l.v.size()) && l.v[step] >= 0 && l.param >= 0 && l.param < NP) T.Pe[l.param] = l.v[step]; }
+    for (int t = 0; t < nT; t++) { Track& T = *trk[t]; std::memcpy(T.Pe, T.P, sizeof T.P); if (!playing) continue; double local = 0; Block* B = playingBlock(t, tick, local); if (!B) continue; const int step = int(local / TPS);
+      for (auto& l : B->c.lanes) if (step < int(l.v.size()) && l.v[step] >= 0 && l.param >= 0 && l.param < NP) T.Pe[l.param] = l.v[step]; }
   }
 
   // ---------------------------------------------------------------- rendering each kind of track
   void renderDrum(Track& T, float* l, float* r, int n) {
     float kick[CH]; std::memset(kick, 0, sizeof(float) * n); bool anyKick = false;
-    for (int pd = 0; pd < 8; pd++) { DrumVoice& v = T.dv[pd]; if (!v.on) continue; const Pad& p = T.pads[pd]; const float g = p.level * p.level * 1.25f, gl = g * 1.4142f * std::cos(p.pan * PI / 2), gr = g * 1.4142f * std::sin(p.pan * PI / 2);
+    for (int pd = 0; pd < NPADS; pd++) { DrumVoice& v = T.dv[pd]; if (!v.on) continue; const Pad& p = T.pads[pd]; const float g = p.level * p.level * 1.25f, gl = g * 1.4142f * std::cos(p.pan * PI / 2), gr = g * 1.4142f * std::sin(p.pan * PI / 2);
       for (int i = 0; i < n && v.on; i++) { float a = 0, b = 0; v.tick(a, b); l[i] += a * gl; r[i] += b * gr; if (v.type == D_KICK) { kick[i] += a * g; anyKick = true; } } }
     const float amt = T.Pe[I0];
     if (amt > 0.01f) {   // rumble: the kick's tail through a small dark room, pushed down while the kick itself hits
@@ -209,7 +225,17 @@ struct Engine {
         if (v.gate > 0 && --v.gate == 0 && !v.oneshot) v.stage = 4;
         if (v.stage == 1) { v.aenv += ka; if (v.aenv >= 1) { v.aenv = 1; v.stage = 3; } } else if (v.stage == 4) { v.aenv -= v.aenv * kr + 1e-6f; if (v.aenv < 0.0004f) { v.on = false; break; } }
         float a = 0, b = 0;
-        if (!v.stretch) {
+        if (v.grain) {   // grain mode: short pieces taken from around POSITION, scattered by SPRAY, layered by DENSITY
+          Rng& rg = T.dv[0].rng; const double span = std::max(64.0, v.end - v.start); const float dur = (0.012f + sq(P[29]) * 0.5f) * sr, ov = 1 + P[30] * 9;
+          if ((v.gtimer -= 1) <= 0) { v.gtimer = dur / ov * (0.7f + 0.6f * rg.uni());
+            for (auto& g : v.g) if (!g.on) { double base = v.start + P[28] * span + (P[34] > 0.5f ? 0.0 : v.scan) + (rg.uni() - 0.5) * P[31] * span * 0.5; base = v.start + std::fmod(std::fmod(base - v.start, span) + span, span);
+              double rt = v.rate; const float sh = P[33], x = rg.uni(); if (x < sh * 0.3f) rt *= 2; else if (x < sh * 0.6f) rt *= 0.5; const bool rev = (P[I0 + 10] > 0.5f) != (rg.uni() < sh * 0.3f);
+              const float pan = 0.5f + (rg.uni() - 0.5f) * P[32]; g.on = true; g.pos = base; g.rate = rev ? -rt : rt; g.ph = 0; g.inc = 1 / dur; g.gl = 1.4142f * std::cos(pan * PI / 2); g.gr = 1.4142f * std::sin(pan * PI / 2); break; } }
+          if (P[34] <= 0.5f) { v.scan += s.rate / sr; if (v.scan > span) v.scan = 0; }
+          for (auto& g : v.g) { if (!g.on) continue; const int i0 = int(g.pos); if (i0 < 0 || i0 >= N - 1) { g.on = false; continue; } const float f = float(g.pos - i0), w = 0.5f - 0.5f * std::cos(2 * PI * g.ph);
+            a += (L[i0] + (L[i0 + 1] - L[i0]) * f) * w * g.gl; b += (R[i0] + (R[i0 + 1] - R[i0]) * f) * w * g.gr; g.pos += g.rate; if ((g.ph += g.inc) >= 1) g.on = false; }
+          const float norm = 1 / std::sqrt(std::max(1.f, ov * 0.5f)); a *= norm; b *= norm;
+        } else if (!v.stretch) {
           if (v.pos < v.start || v.pos > v.end) { if (v.loop) v.pos = v.rev ? v.end : v.start; else { v.on = false; break; } }
           const int i0 = std::min(N - 2, std::max(0, int(v.pos))); const float f = float(v.pos - i0); a = L[i0] + (L[i0 + 1] - L[i0]) * f; b = R[i0] + (R[i0 + 1] - R[i0]) * f; v.pos += v.rev ? -v.rate : v.rate;
           const double left = v.rev ? v.pos - v.start : v.end - v.pos; if (!v.loop && left < 96) { const float e = float(std::max(0.0, left) / 96); a *= e; b *= e; }
@@ -256,6 +282,7 @@ struct Engine {
     if (refOn) { auto s = getSmp(refId); if (s && s->n() > 2) { const int N = s->n(); const double rt = s->rate / sr; for (int i = 0; i < n; i++) { if (refPos >= N - 1) refPos = 0; const int i0 = int(refPos); mL[i] = s->L[i0] * refGain; mR[i] = s->R[i0] * refGain; refPos += rt; } } }
     float p0 = 0, p1 = 0; for (int i = 0; i < n; i++) { oL[i] = mL[i]; oR[i] = mR[i]; p0 = std::max(p0, std::fabs(mL[i])); p1 = std::max(p1, std::fabs(mR[i])); }
     outPk[0].store(std::max(p0, outPk[0].load())); outPk[1].store(std::max(p1, outPk[1].load())); loud.run(oL, oR, n);
+    for (int t = 0; t < nT; t++) { const float v = trk[t]->strip.peak.exchange(0); if (v > pk[t].load()) pk[t].store(v); } { const float v = inStrip.peak.exchange(0); if (v > pk[MAXT].load()) pk[MAXT].store(v); } nTa.store(nT); barsA.store(songBars());
   }
   // hold-to-play effects over the whole mix: DJ filter, stutter, half speed, tape stop
   void perform(float* l, float* r, int n) {
@@ -291,21 +318,23 @@ struct Engine {
   static void qs(std::string& o, const std::string& s) { o += '"'; for (char c : s) { if (c == '"' || c == '\\') o += '\\'; if (c != '\n') o += c; } o += '"'; }
   static void fl(std::string& o, float v) { char b[32]; snprintf(b, sizeof b, " %.5g", v); o += b; }
   std::string dump() {
-    std::string o = "smx 1\n"; char b[160]; o += "title "; qs(o, title); o += "\n"; snprintf(b, sizeof b, "bpm %.4g\nswing %.4g\nkey %d %d\n", bpm, swing, keyRoot, scale); o += b;
+    std::string o = "smx 2\n"; char b[160]; o += "title "; qs(o, title); o += "\n"; snprintf(b, sizeof b, "bpm %.4g\nswing %.4g\nkey %d %d\n", bpm, swing, keyRoot, scale); o += b;
     for (size_t i = 0; i < smp.size(); i++) if (smp[i]) { snprintf(b, sizeof b, "smp %d ", int(i)); o += b; qs(o, smp[i]->name); o += ' '; qs(o, smp[i]->path); o += "\n"; }
     for (int t = 0; t < nT; t++) { Track& T = *trk[t]; snprintf(b, sizeof b, "trk add %d\ntrk eng %d %d\ntrk smp %d %d\ntrk ch %d %d\ntrk mute %d %d\ntrk solo %d %d\ntrk name %d ", T.type, t, T.eng, t, T.smp, t, T.midiCh, t, int(T.mute), t, int(T.solo), t); o += b; qs(o, T.name); o += "\n";
       snprintf(b, sizeof b, "pall %d", t); o += b; for (int i = 0; i < NP; i++) fl(o, T.P[i]); o += "\n";
-      if (T.type == T_DRUM) for (int i = 0; i < 8; i++) { const Pad& p = T.pads[i]; snprintf(b, sizeof b, "pad %d %d %d %.4g %.4g %.4g %.4g %.4g %d\n", t, i, p.type, p.tune, p.decay, p.level, p.pan, p.tone, p.smp); o += b; } }
-    for (int p = 0; p < NPAT; p++) { const Pattern& P = pat[p]; bool any = P.bars != 1; for (int t = 0; t < nT; t++) any |= !P.clips[t].notes.empty() || !P.clips[t].lanes.empty(); if (!any) continue;
-      snprintf(b, sizeof b, "pb %d %d\n", p, P.bars); o += b;
-      for (int t = 0; t < nT; t++) { for (auto& n : P.clips[t].notes) { snprintf(b, sizeof b, "n %d %d %d %d %d %.3g\n", p, t, n.start, n.len, n.pitch, n.vel); o += b; }
-        for (auto& l : P.clips[t].lanes) { snprintf(b, sizeof b, "au %d %d %d", p, t, l.param); o += b; for (float v : l.v) fl(o, v); o += "\n"; } } }
-    o += "song"; for (int s : song) { snprintf(b, sizeof b, " %d", s); o += b; } o += "\nm"; for (int i = 0; i < NM; i++) fl(o, M[i]); o += "\npall 16"; for (int i = 0; i < NP; i++) fl(o, inP[i]); o += "\n";
+      if (T.type == T_DRUM) for (int i = 0; i < NPADS; i++) { const Pad& p = T.pads[i]; snprintf(b, sizeof b, "pad %d %d %d %.4g %.4g %.4g %.4g %.4g %d\n", t, i, p.type, p.tune, p.decay, p.level, p.pan, p.tone, p.smp); o += b; } }
+    for (int t = 0; t < nT; t++) { Track& T = *trk[t];
+      for (size_t k = 0; k < T.blocks.size(); k++) { const Block& B = T.blocks[k]; snprintf(b, sizeof b, "blk add %d %d ", t, B.bars); o += b; qs(o, B.name); o += "\n";
+        for (auto& n : B.c.notes) { snprintf(b, sizeof b, "n %d %d %d %d %d %.3g\n", t, int(k), n.start, n.len, n.pitch, n.vel); o += b; }
+        for (auto& l : B.c.lanes) { snprintf(b, sizeof b, "au %d %d %d", t, int(k), l.param); o += b; for (float v : l.v) fl(o, v); o += "\n"; } }
+      for (auto& p : T.pl) { snprintf(b, sizeof b, "pl add %d %d %d\n", t, p.bar, p.b); o += b; } }
+    snprintf(b, sizeof b, "loop %d %d %d\n", int(loopOn), loopA, loopB); o += b;
+    o += "m"; for (int i = 0; i < NM; i++) fl(o, M[i]); o += "\npall 16"; for (int i = 0; i < NP; i++) fl(o, inP[i]); o += "\n";
     snprintf(b, sizeof b, "ref %d\n", refId); o += b; return o;
   }
-  void load(const std::string& text) { allOff(); for (int t = 0; t < nT; t++) trk[t]->silence(); resetProject(); std::istringstream is(text); std::string line; while (std::getline(is, line)) if (!line.empty()) exec(line, true); curPat = 0; version++; }
+  void load(const std::string& text) { allOff(); for (int t = 0; t < nT; t++) trk[t]->silence(); resetProject(); std::istringstream is(text); std::string line; while (std::getline(is, line)) if (!line.empty()) exec(line, true); mode = 0; edT = edB = 0; tick = 0; version++; }
   void mark() { undoS.push_back(dump()); if (undoS.size() > 40) undoS.erase(undoS.begin()); redoS.clear(); }
-  void restore(const std::string& s) { const bool wp = playing; const int cp = curPat, sp = songPos; const double tk = tick; const bool sm_ = songMode; const std::string tt = title; load(s); title = tt; playing = wp; curPat = cp; songPos = sp; tick = tk; songMode = sm_; }
+  void restore(const std::string& s) { const bool wp = playing; const int md = mode, et = edT, eb = edB; const double tk = tick; const std::string tt = title; load(s); title = tt; playing = wp; mode = md; edT = std::min(et, std::max(0, nT - 1)); edB = eb; if (!blockAt(edT, edB)) { edB = 0; if (mode == 1 && !blockAt(edT, 0)) mode = 0; } tick = tk; }
 
   // ---------------------------------------------------------------- commands
   static std::vector<std::string> split(const std::string& s) {
@@ -313,52 +342,75 @@ struct Engine {
       if (s[i] == '"') { std::string t; i++; while (i < s.size() && s[i] != '"') { if (s[i] == '\\' && i + 1 < s.size()) i++; t += s[i++]; } i++; o.push_back(t); }
       else { size_t j = s.find(' ', i); if (j == std::string::npos) j = s.size(); o.push_back(s.substr(i, j - i)); i = j; } }
     return o; }
-  Clip* clip(int p, int t) { return p >= 0 && p < NPAT && t >= 0 && t < nT ? &pat[p].clips[t] : nullptr; }
+  Clip* clip(int t, int b) { Block* B = blockAt(t, b); return B ? &B->c : nullptr; }
+  // put a block on the timeline; whatever it lands on makes way
+  void place(int t, int bar, int b) {
+    Block* B = blockAt(t, b); if (!B || bar < 0 || bar > 999) return; Track& T = *trk[t]; const int e = bar + B->bars;
+    T.pl.erase(std::remove_if(T.pl.begin(), T.pl.end(), [&](const Place& p) { Block* o = blockAt(t, p.b); const int oe = p.bar + (o ? o->bars : 1); return !(oe <= bar || p.bar >= e); }), T.pl.end());
+    T.pl.push_back({bar, b}); std::sort(T.pl.begin(), T.pl.end(), [](const Place& x, const Place& y) { return x.bar < y.bar; }); }
+  void fixOverlaps(int t) { if (t < 0 || t >= nT) return; auto& pl = trk[t]->pl; std::sort(pl.begin(), pl.end(), [](const Place& x, const Place& y) { return x.bar < y.bar; });
+    for (size_t i = 0; i + 1 < pl.size();) { Block* B = blockAt(t, pl[i].b); const int e = pl[i].bar + (B ? B->bars : 1); if (pl[i + 1].bar < e) pl.erase(pl.begin() + i + 1); else i++; } }
   std::string exec(const std::string& line, bool loading = false) {
     auto a = split(line); if (a.empty()) return ""; const std::string& c = a[0]; auto I = [&](size_t i) { return i < a.size() ? atoi(a[i].c_str()) : 0; }; auto F = [&](size_t i) { return i < a.size() ? float(atof(a[i].c_str())) : 0.f; };
     bool edit = true;
-    if (c == "p") { float* P = params(I(1)); const int k = I(2); if (P && k >= 0 && k < NP) { P[k] = clampf(F(3), 0, 1); if (recOn && playing && I(1) < nT) setAuto(curPat, I(1), k, int(tick / TPS), P[k]); } edit = false; }
+    if (c == "p") { float* P = params(I(1)); const int k = I(2); if (P && k >= 0 && k < NP) { P[k] = clampf(F(3), 0, 1); if (recOn && playing && I(1) < nT) { double local = 0; if (Block* B = playingBlock(I(1), tick, local)) setAutoB(*B, k, int(local / TPS), P[k]); } } edit = false; }
     else if (c == "nudge") { float* P = params(I(1)); const int k = I(2); if (P && k >= 0 && k < NP) P[k] = clampf(P[k] + F(3), 0, 1); }
     else if (c == "mnudge") { const int k = I(1); if (k >= 0 && k < NM) M[k] = clampf(M[k] + F(2), 0, 1); }
     else if (c == "pall") { float* P = params(I(1)); if (P) for (int i = 0; i < NP && i + 2 < int(a.size()); i++) P[i] = F(i + 2); }
     else if (c == "m") { if (a.size() > 3) for (int i = 0; i < NM && i + 1 < int(a.size()); i++) M[i] = F(i + 1); else if (I(1) >= 0 && I(1) < NM) M[I(1)] = clampf(F(2), 0, 1); }
     else if (c == "perf") { if (I(1) >= 0 && I(1) < 4) perf[I(1)] = F(2); edit = false; }
     else if (c == "non") { const int t = I(1), pitch = I(2); const float vel = a.size() > 3 ? F(3) : 0.85f; noteOn(t, pitch, vel, -1);
-      if (recOn && playing && t >= 0 && t < nT) { const int plen = pat[curPat].len(); int st = int(std::lround(tick / TPS)) * TPS; if (st >= plen) st = 0;
-        if (trk[t]->type == T_DRUM) { addNote(curPat, t, st, TPS, pitch & 7, vel); if (st > tick) suppress.push_back({t, pitch & 7, st}); version++; } else pend.push_back({t, pitch, st, vel}); }
+      double local = 0; Block* B = (recOn && playing && pitch >= 0 && pitch < 128) ? playingBlock(t, tick, local) : nullptr;
+      if (B) { const int plen = B->len(), bi = int(B - trk[t]->blocks.data()); int st = int(std::lround(local / TPS)) * TPS; if (st >= plen) st = 0;
+        if (trk[t]->type == T_DRUM) { addNoteB(*B, st, TPS, pitch % NPADS, vel); if (st > local) suppress.push_back({t, pitch % NPADS, st}); version++; } else pend.push_back({t, bi, pitch, st, vel}); }
       edit = false; }
     else if (c == "noff") { const int t = I(1), pitch = I(2); noteOff(t, pitch);
-      for (size_t i = 0; i < pend.size(); i++) if (pend[i].t == t && pend[i].pitch == pitch) { const int plen = pat[curPat].len(); int len = int(std::lround((tick - pend[i].start) / TPS)) * TPS; if (len <= 0) len += plen; len = std::max(TPS, std::min(len, plen));
-        addNote(curPat, t, pend[i].start, len, pitch, pend[i].vel); if (pend[i].start > tick) suppress.push_back({t, pitch, pend[i].start}); pend.erase(pend.begin() + i); version++; break; }
+      for (size_t i = 0; i < pend.size(); i++) if (pend[i].t == t && pend[i].pitch == pitch) { if (Block* B = blockAt(t, pend[i].b)) { double local = 0; const int plen = B->len(); if (playingBlock(t, tick, local) != B) local = pend[i].start + TPS;
+          int len = int(std::lround((local - pend[i].start) / TPS)) * TPS; if (len <= 0) len += plen; len = std::max(TPS, std::min(len, plen));
+          addNoteB(*B, pend[i].start, len, pitch, pend[i].vel); if (pend[i].start > local) suppress.push_back({t, pitch, pend[i].start}); version++; } pend.erase(pend.begin() + i); break; }
       edit = false; }
-    else if (c == "play") { if (!playing) { playing = true; ended = false; if (songMode && !song.empty()) { songPos = std::min(songPos, int(song.size()) - 1); curPat = song[songPos]; } loud.reset(); } }
-    else if (c == "stop") { if (!playing) { tick = 0; songPos = 0; if (songMode && !song.empty()) curPat = song[0]; } playing = false; allOff(); }
-    else if (c == "seek") { songPos = std::max(0, std::min(I(1), int(song.size()) - 1)); if (songMode && !song.empty()) curPat = song[songPos]; tick = 0; allOff(); }
-    else if (c == "rec") recOn = I(1) != 0; else if (c == "metro") metro = I(1) != 0; else if (c == "mode") songMode = I(1) != 0; else if (c == "loop") loopSong = I(1) != 0; else if (c == "inmon") inMon = I(1) != 0;
+    else if (c == "play") { if (!playing) { playing = true; ended = false; if (mode == 0 && !loopOn && tick >= double(songBars()) * BAR) tick = 0; loud.reset(); } }
+    else if (c == "stop") { if (!playing) tick = (mode == 0 && loopOn) ? double(loopA) * BAR : 0; playing = false; allOff(); }
+    else if (c == "seek") { tick = double(std::max(0, std::min(999, I(1)))) * BAR; allOff(); }
+    else if (c == "mode") { const int m = I(1) ? 1 : 0; if (m != mode) { mode = m; tick = a.size() > 2 ? double(std::max(0, I(2))) * BAR : 0; allOff(); } }
+    else if (c == "ed") { const int t = I(1), b = I(2); if (blockAt(t, b)) { if (t != edT || b != edB) { edT = t; edB = b; if (mode == 1) { tick = 0; allOff(); } } } }
+    else if (c == "loop") { loopOn = I(1) != 0; if (a.size() > 3) { loopA = std::max(0, std::min(998, I(2))); loopB = std::max(loopA + 1, std::min(999, I(3))); } }
+    else if (c == "rec") recOn = I(1) != 0; else if (c == "metro") metro = I(1) != 0; else if (c == "inmon") inMon = I(1) != 0;
     else if (c == "bpm") bpm = clampf(F(1), 40, 240); else if (c == "swing") swing = clampf(F(1), 0, 1); else if (c == "key") { keyRoot = ((I(1) % 12) + 12) % 12; scale = I(2) & 7; }
     else if (c == "title") { if (a.size() > 1) title = a[1]; }
-    else if (c == "pat") { const int p = std::max(0, std::min(NPAT - 1, I(1))); if (p != curPat) { curPat = p; if (tick >= pat[p].len()) tick = std::fmod(tick, double(pat[p].len())); allOff(); } }
-    else if (c == "pb") { const int p = I(1); if (p >= 0 && p < NPAT) { pat[p].bars = std::max(1, std::min(8, I(2))); if (p == curPat && tick >= pat[p].len()) tick = 0; } }
     else if (c == "trk") { const std::string& s = a.size() > 1 ? a[1] : c; const int t = I(2);
       if (s == "add") { const int r = addTrack(I(2)); version++; return std::to_string(r); }
       if (t < 0 || t >= nT) return ""; Track& T = *trk[t];
       if (s == "del") delTrack(t); else if (s == "eng") T.eng = I(3) & 3; else if (s == "smp") T.smp = I(3); else if (s == "ch") T.midiCh = I(3) & 15; else if (s == "mute") T.mute = I(3) != 0; else if (s == "solo") T.solo = I(3) != 0; else if (s == "name" && a.size() > 3) T.name = a[3];
       else if (s == "type") { T.silence(); T.type = I(3) & 3; } }
-    else if (c == "pad") { const int t = I(1), i = I(2); if (t >= 0 && t < nT && i >= 0 && i < 8) { Pad& p = trk[t]->pads[i];
-        if (a.size() >= 10) { p.type = I(3) % D_COUNT; p.tune = F(4); p.decay = F(5); p.level = F(6); p.pan = F(7); p.tone = F(8); p.smp = I(9); }
-        else if (a.size() >= 5) { const std::string& f = a[3]; if (f == "type") p.type = I(4) % D_COUNT; else if (f == "tune") p.tune = F(4); else if (f == "decay") p.decay = F(4); else if (f == "level") p.level = F(4); else if (f == "pan") p.pan = F(4); else if (f == "tone") p.tone = F(4); else if (f == "smp") { p.smp = I(4); p.type = D_SAMPLE; } } } }
-    else if (c == "n") { addNote(I(1), I(2), I(3), I(4), I(5), a.size() > 6 ? F(6) : 0.8f); }
+    else if (c == "pad") { const int t = I(1), i = I(2); if (t >= 0 && t < nT && i >= 0 && i < NPADS) { Pad& p = trk[t]->pads[i];
+        if (a.size() >= 10) { p.type = ((I(3) % D_COUNT) + D_COUNT) % D_COUNT; p.tune = F(4); p.decay = F(5); p.level = F(6); p.pan = F(7); p.tone = F(8); p.smp = I(9); }
+        else if (a.size() >= 5) { const std::string& f = a[3]; if (f == "type") p.type = ((I(4) % D_COUNT) + D_COUNT) % D_COUNT; else if (f == "tune") p.tune = F(4); else if (f == "decay") p.decay = F(4); else if (f == "level") p.level = F(4); else if (f == "pan") p.pan = F(4); else if (f == "tone") p.tone = F(4); else if (f == "smp") { p.smp = I(4); p.type = D_SAMPLE; p.tune = 0.5f; p.decay = 1; } } } }
+    else if (c == "kitdump") { const int t = I(1); if (t < 0 || t >= nT) return ""; std::string o; char b[200]; for (int i = 0; i < NPADS; i++) { const Pad& p = trk[t]->pads[i]; auto sm_ = p.type == D_SAMPLE ? getSmp(p.smp) : nullptr; snprintf(b, sizeof b, "%d %d %.4g %.4g %.4g %.4g %.4g ", i, p.type, p.tune, p.decay, p.level, p.pan, p.tone); o += b; qs(o, sm_ ? sm_->path : ""); o += "\n"; } snprintf(b, sizeof b, "x %.4g %.4g\n", trk[t]->P[I0], trk[t]->P[CRUSH]); o += b; return o; }
+    else if (c == "blk") { const std::string s = a.size() > 1 ? a[1] : ""; const int t = I(2); if (t < 0 || t >= nT) return ""; Track& T = *trk[t]; const int b = I(3);
+      if (s == "add") { if (T.blocks.size() >= 64) return "-1"; Block B; B.bars = std::max(1, std::min(MAXBARS, I(3))); B.name = a.size() > 4 ? a[4] : "BLOCK " + std::to_string(T.blocks.size() + 1); T.blocks.push_back(B); version++; return std::to_string(T.blocks.size() - 1); }
+      Block* B = blockAt(t, b); if (!B) return "";
+      if (s == "del") { T.blocks.erase(T.blocks.begin() + b); T.pl.erase(std::remove_if(T.pl.begin(), T.pl.end(), [&](const Place& p) { return p.b == b; }), T.pl.end()); for (auto& p : T.pl) if (p.b > b) p.b--; pend.clear(); if (edT == t) { if (edB == b) { edB = 0; if (mode == 1) { mode = 0; tick = 0; allOff(); } } else if (edB > b) edB--; } }
+      else if (s == "name") { if (a.size() > 4) B->name = a[4]; }
+      else if (s == "bars") { B->bars = std::max(1, std::min(MAXBARS, I(4))); const int len = B->len(); B->c.notes.erase(std::remove_if(B->c.notes.begin(), B->c.notes.end(), [&](const Note& n) { return n.start >= len; }), B->c.notes.end()); fixOverlaps(t); if (mode == 1 && tick >= len) tick = 0; }
+      else if (s == "copy") { if (T.blocks.size() >= 64) return "-1"; Block N = *B; N.name = B->name + " +"; T.blocks.push_back(N); version++; return std::to_string(T.blocks.size() - 1); }
+      else if (s == "double") { if (B->bars * 2 <= MAXBARS) { const int len = B->len(); const size_t n0 = B->c.notes.size(); for (size_t i = 0; i < n0; i++) { Note n = B->c.notes[i]; n.start += len; B->c.notes.push_back(n); } for (auto& l : B->c.lanes) { l.v.resize(B->bars * 16, -1); const size_t m = l.v.size(); for (size_t i = 0; i < m; i++) l.v.push_back(l.v[i]); } B->bars *= 2; fixOverlaps(t); } }
+      else if (s == "split") { const int at = I(4); if (at <= 0 || at >= B->bars || T.blocks.size() >= 64) return "-1"; Block N; N.bars = B->bars - at; N.name = B->name + " B"; const int cutT = at * BAR;
+        for (auto& n : B->c.notes) if (n.start >= cutT) { Note m = n; m.start -= cutT; N.c.notes.push_back(m); } B->c.notes.erase(std::remove_if(B->c.notes.begin(), B->c.notes.end(), [&](const Note& n) { return n.start >= cutT; }), B->c.notes.end());
+        for (auto& l : B->c.lanes) { Lane m{l.param, {}}; if (int(l.v.size()) > at * 16) { m.v.assign(l.v.begin() + at * 16, l.v.end()); l.v.resize(at * 16); } N.c.lanes.push_back(m); }
+        B->bars = at; T.blocks.push_back(N); const int ni = int(T.blocks.size()) - 1; std::vector<Place> add; for (auto& p : T.pl) if (p.b == b) add.push_back({p.bar + at, ni}); for (auto& p : add) T.pl.push_back(p); fixOverlaps(t); version++; return std::to_string(ni); } }
+    else if (c == "n") { if (Block* B = blockAt(I(1), I(2))) addNoteB(*B, I(3), I(4), I(5), a.size() > 6 ? F(6) : 0.8f); }
     else if (c == "nd") { if (Clip* k = clip(I(1), I(2))) { const int st = I(3), pi = I(4); k->notes.erase(std::remove_if(k->notes.begin(), k->notes.end(), [&](const Note& n) { return n.start == st && n.pitch == pi; }), k->notes.end()); } }
     else if (c == "nclear") { if (Clip* k = clip(I(1), I(2))) { k->notes.clear(); if (I(3)) k->lanes.clear(); } }
     else if (c == "nshift") { if (Clip* k = clip(I(1), I(2))) for (auto& n : k->notes) n.pitch = std::max(0, std::min(127, n.pitch + I(3))); }
-    else if (c == "au") { const int p = I(1), t = I(2), k = I(3); if (Clip* cl = clip(p, t)) { if (a.size() <= 4) { cl->lanes.erase(std::remove_if(cl->lanes.begin(), cl->lanes.end(), [&](const Lane& l) { return l.param == k; }), cl->lanes.end()); }
-        else if (a.size() == 6 && !loading) setAuto(p, t, k, I(4), F(5)); else { Lane* L = nullptr; for (auto& l : cl->lanes) if (l.param == k) L = &l; if (!L) { cl->lanes.push_back({k, {}}); L = &cl->lanes.back(); } L->v.clear(); for (size_t i = 4; i < a.size(); i++) L->v.push_back(F(i)); } } }
-    else if (c == "pcopy") { const int s = I(1), d = I(2); if (s >= 0 && s < NPAT && d >= 0 && d < NPAT && s != d) pat[d] = pat[s]; }
-    else if (c == "pclear") { const int p = I(1); if (p >= 0 && p < NPAT) pat[p] = Pattern(); }
-    else if (c == "pdouble") { const int p = I(1); if (p >= 0 && p < NPAT && pat[p].bars <= 4) { Pattern& P = pat[p]; const int len = P.len(); for (auto& cl : P.clips) { const size_t n0 = cl.notes.size(); for (size_t i = 0; i < n0; i++) { Note n = cl.notes[i]; n.start += len; cl.notes.push_back(n); } for (auto& l : cl.lanes) { l.v.resize(P.bars * 16, -1); const size_t m = l.v.size(); for (size_t i = 0; i < m; i++) l.v.push_back(l.v[i]); } } P.bars *= 2; } }
-    else if (c == "song") { const std::string s = a.size() > 1 ? a[1] : ""; if (s == "add") { if (song.size() < 256) song.insert(song.begin() + std::max(0, std::min(int(song.size()), a.size() > 3 ? I(3) : int(song.size()))), std::max(0, std::min(NPAT - 1, I(2)))); }
-      else if (s == "del") { if (I(2) >= 0 && I(2) < int(song.size())) song.erase(song.begin() + I(2)); if (songPos >= int(song.size())) songPos = 0; } else if (s == "set") { if (I(2) >= 0 && I(2) < int(song.size())) song[I(2)] = std::max(0, std::min(NPAT - 1, I(3))); }
-      else if (s == "clear") { song.clear(); songPos = 0; } else { song.clear(); for (size_t i = 1; i < a.size(); i++) song.push_back(std::max(0, std::min(NPAT - 1, I(i)))); } }
+    else if (c == "au") { const int t = I(1), k = I(3); if (Block* B = blockAt(t, I(2))) { Clip* cl = &B->c; if (a.size() <= 4) { cl->lanes.erase(std::remove_if(cl->lanes.begin(), cl->lanes.end(), [&](const Lane& l) { return l.param == k; }), cl->lanes.end()); }
+        else if (a.size() == 6 && !loading) setAutoB(*B, k, I(4), F(5)); else if (k >= 0 && k < NP) { Lane* L = nullptr; for (auto& l : cl->lanes) if (l.param == k) L = &l; if (!L) { cl->lanes.push_back({k, {}}); L = &cl->lanes.back(); } L->v.clear(); for (size_t i = 4; i < a.size() && i < 4 + MAXSTEPS; i++) L->v.push_back(F(i)); } } }
+    else if (c == "pl") { const std::string s = a.size() > 1 ? a[1] : ""; const int t = I(2); if (t < 0 || t >= nT) return ""; Track& T = *trk[t]; const int bar = I(3);
+      auto at = [&](int br) { for (size_t i = 0; i < T.pl.size(); i++) { Block* B = blockAt(t, T.pl[i].b); if (br >= T.pl[i].bar && br < T.pl[i].bar + (B ? B->bars : 1)) return int(i); } return -1; };
+      if (s == "add") place(t, bar, I(4)); else if (s == "del") { const int i = at(bar); if (i >= 0) T.pl.erase(T.pl.begin() + i); }
+      else if (s == "move") { const int i = at(bar); if (i >= 0 && I(4) >= 0) { const int b = T.pl[i].b; T.pl.erase(T.pl.begin() + i); place(t, I(4), b); } }
+      else if (s == "dup") { const int i = at(bar); if (i >= 0) { Block* B = blockAt(t, T.pl[i].b); if (B) place(t, T.pl[i].bar + B->bars, T.pl[i].b); } }
+      else if (s == "clear") { T.pl.clear(); allOff(); } }
     else if (c == "smp") { const int id = I(1); if (id >= 0 && id < 4096) { if (id >= int(smp.size())) smp.resize(id + 1); if (!smp[id]) smp[id] = std::make_shared<Sample>(); if (a.size() > 2) smp[id]->name = a[2]; if (a.size() > 3) smp[id]->path = a[3]; } }
     else if (c == "sel") { if (a.size() > 2) sel[a[1]] = I(2); }
     else if (c == "ref") { if (a.size() > 2) refOn = I(2) != 0; else { refId = I(1); } refPos = refOn ? refPos : 0; }
@@ -376,33 +428,32 @@ struct Engine {
     if (!loading && c != "sel" && c != "perf" && c != "non" && c != "noff") edits++;
     return "";
   }
-  void addNote(int p, int t, int start, int len, int pitch, float vel) { Clip* k = clip(p, t); if (!k || k->notes.size() > 4000) return; start = std::max(0, std::min(start, MAXSTEPS * TPS - 1));
+  void addNoteB(Block& B, int start, int len, int pitch, float vel) { Clip* k = &B.c; if (k->notes.size() > 4000 || pitch < 0 || pitch > 127) return; start = std::max(0, std::min(start, B.len() - 1));
     for (auto& n : k->notes) if (n.start == start && n.pitch == pitch) { n.len = std::max(1, len); n.vel = vel; return; } k->notes.push_back({start, std::max(1, len), pitch, clampf(vel, 0.02f, 1)}); }
-  void setAuto(int p, int t, int param, int step, float v) { Clip* k = clip(p, t); if (!k || step < 0 || step >= MAXSTEPS || param < 0 || param >= NP) return; Lane* L = nullptr; for (auto& l : k->lanes) if (l.param == param) L = &l;
+  void setAutoB(Block& B, int param, int step, float v) { Clip* k = &B.c; if (step < 0 || step >= B.bars * 16 || param < 0 || param >= NP) return; Lane* L = nullptr; for (auto& l : k->lanes) if (l.param == param) L = &l;
     if (!L) { if (v < 0) return; k->lanes.push_back({param, {}}); L = &k->lanes.back(); } if (int(L->v.size()) <= step) L->v.resize(step + 1, -1); L->v[step] = v; }
 
   // ---------------------------------------------------------------- what the screens read
   std::string state() {
-    std::string o; o.reserve(16384); char b[256]; auto num = [&](float v) { snprintf(b, sizeof b, "%.4g", v); o += b; };
-    snprintf(b, sizeof b, "{\"v\":%d,\"bpm\":%.4g,\"swing\":%.3g,\"key\":%d,\"scale\":%d,\"playing\":%d,\"songMode\":%d,\"rec\":%d,\"metro\":%d,\"loop\":%d,\"pat\":%d,\"inMon\":%d,\"undo\":%d,\"redo\":%d,\"refId\":%d,\"refOn\":%d,\"title\":", version.load(), bpm, swing, keyRoot, scale, int(playing), int(songMode), int(recOn), int(metro), int(loopSong), curPat, int(inMon), int(undoS.size()), int(redoS.size()), refId, int(refOn)); o += b; qs(o, title);
+    std::string o; o.reserve(16384); char b[320]; auto num = [&](float v) { snprintf(b, sizeof b, "%.4g", v); o += b; };
+    snprintf(b, sizeof b, "{\"v\":%d,\"bpm\":%.4g,\"swing\":%.3g,\"key\":%d,\"scale\":%d,\"playing\":%d,\"mode\":%d,\"edT\":%d,\"edB\":%d,\"loopOn\":%d,\"loopA\":%d,\"loopB\":%d,\"bars\":%d,\"rec\":%d,\"metro\":%d,\"inMon\":%d,\"undo\":%d,\"redo\":%d,\"refId\":%d,\"refOn\":%d,\"title\":", version.load(), bpm, swing, keyRoot, scale, int(playing), mode, edT, edB, int(loopOn), loopA, loopB, songBars(), int(recOn), int(metro), int(inMon), int(undoS.size()), int(redoS.size()), refId, int(refOn)); o += b; qs(o, title);
     o += ",\"sel\":{"; { bool f = true; for (auto& kv : sel) { if (!f) o += ','; f = false; qs(o, kv.first); snprintf(b, sizeof b, ":%d", kv.second); o += b; } } o += "},\"M\":["; for (int i = 0; i < NM; i++) { if (i) o += ','; num(M[i]); } o += "],\"inP\":["; for (int i = 0; i < NP; i++) { if (i) o += ','; num(inP[i]); }
-    o += "],\"song\":["; for (size_t i = 0; i < song.size(); i++) { if (i) o += ','; o += std::to_string(song[i]); } o += "],\"tracks\":[";
+    o += "],\"tracks\":[";
     for (int t = 0; t < nT; t++) { Track& T = *trk[t]; if (t) o += ','; snprintf(b, sizeof b, "{\"type\":%d,\"eng\":%d,\"smp\":%d,\"ch\":%d,\"mute\":%d,\"solo\":%d,\"name\":", T.type, T.eng, T.smp, T.midiCh, int(T.mute), int(T.solo)); o += b; qs(o, T.name);
       o += ",\"P\":["; for (int i = 0; i < NP; i++) { if (i) o += ','; num(T.P[i]); } o += "]";
-      if (T.type == T_DRUM) { o += ",\"pads\":["; for (int i = 0; i < 8; i++) { const Pad& p = T.pads[i]; if (i) o += ','; snprintf(b, sizeof b, "{\"type\":%d,\"tune\":%.3g,\"decay\":%.3g,\"level\":%.3g,\"pan\":%.3g,\"tone\":%.3g,\"smp\":%d}", p.type, p.tune, p.decay, p.level, p.pan, p.tone, p.smp); o += b; } o += "]"; }
-      o += "}"; }
-    o += "],\"pats\":[";
-    for (int p = 0; p < NPAT; p++) { const Pattern& P = pat[p]; if (p) o += ','; snprintf(b, sizeof b, "{\"bars\":%d,\"c\":[", P.bars); o += b;
-      for (int t = 0; t < nT; t++) { if (t) o += ','; o += "{\"n\":["; bool f = true; for (auto& n : P.clips[t].notes) { if (!f) o += ','; f = false; snprintf(b, sizeof b, "[%d,%d,%d,%.3g]", n.start, n.len, n.pitch, n.vel); o += b; }
-        o += "],\"a\":{"; f = true; for (auto& l : P.clips[t].lanes) { if (!f) o += ','; f = false; snprintf(b, sizeof b, "\"%d\":[", l.param); o += b; for (size_t i = 0; i < l.v.size(); i++) { if (i) o += ','; num(l.v[i]); } o += "]"; } o += "}}"; }
+      if (T.type == T_DRUM) { o += ",\"pads\":["; for (int i = 0; i < NPADS; i++) { const Pad& p = T.pads[i]; if (i) o += ','; snprintf(b, sizeof b, "{\"type\":%d,\"tune\":%.3g,\"decay\":%.3g,\"level\":%.3g,\"pan\":%.3g,\"tone\":%.3g,\"smp\":%d}", p.type, p.tune, p.decay, p.level, p.pan, p.tone, p.smp); o += b; } o += "]"; }
+      o += ",\"pl\":["; for (size_t i = 0; i < T.pl.size(); i++) { if (i) o += ','; snprintf(b, sizeof b, "[%d,%d]", T.pl[i].bar, T.pl[i].b); o += b; }
+      o += "],\"blocks\":["; for (size_t k = 0; k < T.blocks.size(); k++) { const Block& B = T.blocks[k]; if (k) o += ','; snprintf(b, sizeof b, "{\"bars\":%d,\"name\":", B.bars); o += b; qs(o, B.name); o += ",\"n\":["; bool f = true;
+        for (auto& n : B.c.notes) { if (!f) o += ','; f = false; snprintf(b, sizeof b, "[%d,%d,%d,%.3g]", n.start, n.len, n.pitch, n.vel); o += b; }
+        o += "],\"a\":{"; f = true; for (auto& l : B.c.lanes) { if (!f) o += ','; f = false; snprintf(b, sizeof b, "\"%d\":[", l.param); o += b; for (size_t i = 0; i < l.v.size(); i++) { if (i) o += ','; num(l.v[i]); } o += "]"; } o += "}}"; }
       o += "]}"; }
     o += "],\"smp\":["; { bool f = true; for (size_t i = 0; i < smp.size(); i++) if (smp[i]) { if (!f) o += ','; f = false; snprintf(b, sizeof b, "{\"id\":%d,\"sec\":%.3g,\"name\":", int(i), smp[i]->n() / smp[i]->rate); o += b; qs(o, smp[i]->name); o += "}"; } }
     o += "]}"; return o;
   }
   // fast numbers for the meters: no lock needed, read many times a second
   std::string meters() {
-    std::string o; char b[96]; snprintf(b, sizeof b, "%d,%d,%d,%.2f,%d,%.1f,%.1f,%.1f,%.2f,%.2f,%.3f,%.3f,%.3f,%.1f,%.2f", version.load(), int(playing), curPat, tick, songPos, loud.mom.load(), loud.shortT.load(), loud.integ.load(), lim.gr.load(), glueGr.load(), outPk[0].exchange(0), outPk[1].exchange(0), inPeak.exchange(0), float(recN / sr), cpu.load()); o += b;
-    for (int t = 0; t < nT; t++) { Track* T = trk[t].get(); snprintf(b, sizeof b, ",%.3f", T ? T->strip.peak.exchange(0) : 0.f); o += b; } snprintf(b, sizeof b, ";%.3f", inStrip.peak.exchange(0)); o += b; return o;
+    std::string o; char b[96]; snprintf(b, sizeof b, "%d,%d,%d,%.2f,%d,%.1f,%.1f,%.1f,%.2f,%.2f,%.3f,%.3f,%.3f,%.1f,%.2f", version.load(), int(playing), mode, tick, barsA.load(), loud.mom.load(), loud.shortT.load(), loud.integ.load(), lim.gr.load(), glueGr.load(), outPk[0].exchange(0), outPk[1].exchange(0), inPeak.exchange(0), float(recN / sr), cpu.load()); o += b;
+    const int nn = std::min(int(MAXT), nTa.load()); for (int t = 0; t < nn; t++) { snprintf(b, sizeof b, ",%.3f", pk[t].exchange(0)); o += b; } snprintf(b, sizeof b, ";%.3f", pk[MAXT].exchange(0)); o += b; return o;
   }
   std::string peaks(int id, int bins) { auto s = getSmp(id); if (!s || s->n() < 2) return ""; std::string o; char b[16]; const int N = s->n();
     for (int k = 0; k < bins; k++) { const int a0 = int(int64_t(N) * k / bins), e = std::max(a0 + 1, int(int64_t(N) * (k + 1) / bins)); float pk = 0; const int st = std::max(1, (e - a0) / 64); for (int i = a0; i < e; i += st) pk = std::max(pk, std::max(std::fabs(s->L[i]), std::fabs(s->R[i]))); snprintf(b, sizeof b, k ? ",%.3f" : "%.3f", pk); o += b; }
@@ -414,15 +465,16 @@ struct Engine {
     fwrite("RIFF", 1, 4, f); u32(36 + bytes); fwrite("WAVEfmt ", 1, 8, f); u32(16); u16(1); u16(2); u32(rate); u32(rate * 6); u16(6); u16(24); fwrite("data", 1, 4, f); u32(bytes);
     std::vector<uint8_t> buf; buf.reserve(6 * 4096); for (uint32_t i = 0; i < n; i++) { for (int c = 0; c < 2; c++) { const int32_t v = int32_t(std::lrint(clampf(c ? R[i] : L[i], -1, 1) * 8388607.0)); buf.push_back(v & 255); buf.push_back((v >> 8) & 255); buf.push_back((v >> 16) & 255); } if (buf.size() >= 6 * 4096) { fwrite(buf.data(), 1, buf.size(), f); buf.clear(); } }
     if (!buf.empty()) fwrite(buf.data(), 1, buf.size(), f); fclose(f); return true; }
-  // mode 0: the song (or the pattern if there is no song) with its tail; 1: the pattern exactly, as a loop; 2: one track of the song
-  bool render(int mode, int arg, std::vector<float>& L, std::vector<float>& R) {
-    const bool wp = playing, wm = songMode, wl = loopSong, wr = recOn, wmet = metro; const int cp = curPat, sp = songPos; const double tk = tick; std::vector<bool> solo, mute;
-    allOff(); for (int t = 0; t < nT; t++) { trk[t]->silence(); solo.push_back(trk[t]->solo); mute.push_back(trk[t]->mute); if (mode == 2) { trk[t]->solo = t == arg; trk[t]->mute = false; } }
-    delay.clear(); reverb.clear(); loud.reset(); lim.init(sr); std::fill(pbL.begin(), pbL.end(), 0.f); std::fill(pbR.begin(), pbR.end(), 0.f); recOn = false; metro = false; const bool useSong = mode != 1 && !song.empty(); songMode = useSong; loopSong = false; oneShot = !useSong; songPos = 0; if (useSong) curPat = song[0]; tick = 0; ended = false; playing = true;
-    const bool wasMon = inMon; inMon = false; float l[CH], r[CH]; const size_t maxN = size_t(sr * 60 * 12); int tail = mode == 1 ? 0 : int(sr * 2.5f); L.clear(); R.clear();
+  // what 0: the whole song with its tail; 1: the block being edited, exactly, as a loop; 2: one track of the song
+  bool render(int what, int arg, std::vector<float>& L, std::vector<float>& R) {
+    const bool wp = playing, wl = loopOn, wr = recOn, wmet = metro, wasMon = inMon; const int md = mode; const double tk = tick; std::vector<bool> solo, mute;
+    allOff(); for (int t = 0; t < nT; t++) { trk[t]->silence(); solo.push_back(trk[t]->solo); mute.push_back(trk[t]->mute); if (what == 2) { trk[t]->solo = t == arg; trk[t]->mute = false; } }
+    delay.clear(); reverb.clear(); loud.reset(); lim.init(sr); std::fill(pbL.begin(), pbL.end(), 0.f); std::fill(pbR.begin(), pbR.end(), 0.f); recOn = false; metro = false; inMon = false;
+    mode = what == 1 ? 1 : 0; loopOn = false; oneShot = what == 1; tick = 0; ended = false; playing = true;
+    float l[CH], r[CH]; const size_t maxN = size_t(sr * 60 * 12); int tail = what == 1 ? 0 : int(sr * 2.5f); L.clear(); R.clear();
     while (L.size() < maxN) { chunk(l, r, CH, nullptr, nullptr); L.insert(L.end(), l, l + CH); R.insert(R.end(), r, r + CH); if (ended) { if (tail <= 0) break; tail -= CH; } }
-    if (mode == 1) { size_t want = size_t(pat[curPat].len() * tickSamples()); if (L.size() > want) { L.resize(want); R.resize(want); } }
-    playing = wp; songMode = wm; loopSong = wl; recOn = wr; metro = wmet; oneShot = false; curPat = cp; songPos = sp; tick = tk; inMon = wasMon; ended = false; allOff(); for (int t = 0; t < nT; t++) { trk[t]->silence(); trk[t]->solo = solo[t]; trk[t]->mute = mute[t]; } delay.clear(); reverb.clear();
+    if (what == 1) { Block* B = blockAt(edT, edB); const size_t want = size_t((B ? B->len() : BAR) * tickSamples()); if (L.size() > want) { L.resize(want); R.resize(want); } }
+    playing = wp; mode = md; loopOn = wl; recOn = wr; metro = wmet; oneShot = false; tick = tk; inMon = wasMon; ended = false; allOff(); for (int t = 0; t < nT; t++) { trk[t]->silence(); trk[t]->solo = solo[t]; trk[t]->mute = mute[t]; } delay.clear(); reverb.clear();
     return !L.empty();
   }
 };

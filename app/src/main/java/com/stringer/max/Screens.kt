@@ -41,6 +41,10 @@ class Bridge {
     @JavascriptInterface fun remove(name: String) = Studio.deleteProject(name)
     @JavascriptInterface fun fresh(kind: String) = Studio.newSong(kind)
     @JavascriptInterface fun export(kind: String, names: String) = Studio.export(kind, names)
+    @JavascriptInterface fun kits(): String = Studio.kits()
+    @JavascriptInterface fun saveKit(name: String) = Studio.saveKit(name)
+    @JavascriptInterface fun loadKit(name: String) = Studio.loadKit(name)
+    @JavascriptInterface fun removeKit(name: String) = Studio.deleteKit(name)
     @JavascriptInterface fun rec() = Studio.rec()
     @JavascriptInterface fun focus(what: String) { Studio.focus = what }
     @JavascriptInterface fun info(): String = Native.info()

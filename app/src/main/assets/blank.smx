@@ -1,4 +1,4 @@
-smx 1
+smx 2
 title "NEW SONG"
 bpm 138
 key 9 1
@@ -47,4 +47,12 @@ p 2 26 0.5
 trk name 2 "SUPERSAW LEAD"
 trk add 3
 trk name 3 "FM-1"
-song 0
+blk add 0 4 "BLOCK 1"
+pl add 0 0 0
+blk add 1 4 "BLOCK 1"
+pl add 1 0 0
+blk add 2 4 "BLOCK 1"
+pl add 2 0 0
+blk add 3 4 "BLOCK 1"
+pl add 3 0 0
+loop 1 0 4
