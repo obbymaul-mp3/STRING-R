@@ -1,0 +1,5 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><title>Stringer Max</title>
+<style>html,body{margin:0;height:100%;background:#03040a;overflow:hidden}iframe{display:block;width:100%;border:0}#a{height:50%}#b{height:50%}</style></head>
+<body><iframe id="a" src="top.html"></iframe><iframe id="b" src="bottom.html"></iframe>
+<script>/* one screen only: both halves share the app's bridge */ for (const f of document.querySelectorAll('iframe')) f.addEventListener('load', () => { try { if (window.SM && !f.contentWindow.SM) f.contentWindow.SM = window.SM; } catch (e) {} });</script></body></html>
