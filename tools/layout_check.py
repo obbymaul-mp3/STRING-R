@@ -1,5 +1,6 @@
-# Opens every screen against the real engine (node tools/dev.js must be running) and reports any text that is clipped, off-screen or overlapping. "worst" adds long names and 16 tracks.
-import sys, asyncio, json
+# Opens every screen against the real engine (node tools/dev.js must be running) and reports any text that is clipped, off-screen or overlapping. "worst" adds long names and 16 tracks. TH and BH set the two screen heights.
+import sys, asyncio, json, os
+TH=int(os.environ.get('TH',1080)); BH=int(os.environ.get('BH',1080))
 from playwright.async_api import async_playwright
 JS = r"""() => {
   const out = [], vis = (e) => { const r = e.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return false; for (let p = e; p; p = p.parentElement) { const s = getComputedStyle(p); if (s.display === 'none' || s.visibility === 'hidden') return false; } return true; };
@@ -25,7 +26,7 @@ JS = r"""() => {
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(args=['--no-sandbox']); errs = []; total = 0
-        top = await b.new_page(viewport={'width':1920,'height':1080}); bot = await b.new_page(viewport={'width':1240,'height':1080})
+        top = await b.new_page(viewport={'width':1920,'height':TH}); bot = await b.new_page(viewport={'width':1240,'height':BH})
         for pg,n in ((top,'top'),(bot,'bottom')):
             pg.on('pageerror', lambda e,n=n: errs.append(n+': '+str(e))); pg.on('console', lambda m,n=n: errs.append(n+' console: '+m.text) if m.type=='error' else None)
             await pg.goto(f'http://localhost:8377/{n}.html'); await pg.wait_for_timeout(900)

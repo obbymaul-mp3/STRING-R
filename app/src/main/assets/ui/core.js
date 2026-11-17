@@ -47,12 +47,29 @@ function tick() {
   let p; try { p = JSON.parse(SMB.poll()); } catch (e) { return; } S.poll = p;
   if (p.m) { const [a, b] = p.m.split(';'); const f = a.split(',').map(Number); S.m = { v: f[0], playing: f[1], mode: f[2], tick: f[3], bars: f[4], mom: f[5], short: f[6], integ: f[7], lim: f[8], glue: f[9], pkL: f[10], pkR: f[11], inPk: f[12], recSec: f[13], cpu: f[14], trk: f.slice(15), inStrip: Number(b) };
     if (S.m.v !== S.v) sync(); }
-  if (p.acts && p.acts.length) { if (S.lastAct < 0) S.lastAct = p.acts[p.acts.length - 1][0]; for (const [n, name] of p.acts) if (n > S.lastAct) { S.lastAct = n; if (window.onAct) onAct(name); } } else if (S.lastAct < 0) S.lastAct = 0;
+  CUR.lx = p.lx || 0; CUR.ly = p.ly || 0;
+  if (p.acts && p.acts.length) { if (S.lastAct < 0) S.lastAct = p.acts[p.acts.length - 1][0]; for (const [n, name] of p.acts) if (n > S.lastAct) { S.lastAct = n; if (name === 'A1' || name === 'A0') curPress(name === 'A1'); else if (window.onAct) onAct(name); } } else if (S.lastAct < 0) S.lastAct = 0;
   if (p.notice && p.notice !== tick.last) toast(p.notice); tick.last = p.notice;
   const bz = document.getElementById('busy'); if (bz) { bz.classList.toggle('show', !!p.busy && p.busy !== 'LOADING'); bz.textContent = p.busy || ''; }
   if (S.st && S.m && window.onMeters) onMeters();
 }
-function start() { sync(true); setInterval(tick, 50); tick(); }
+function start() { sync(true); setInterval(tick, 50); tick(); if (document.documentElement.classList.contains('top')) curStart(); }
+
+// ---- the stick cursor (top screen): the left stick moves a small chrome sword, A presses whatever its tip is on. Holding A and moving drags.
+// It sends the same pointer events a finger does, so everything that works by touch works with it.
+const CUR = { lx: 0, ly: 0, x: 0, y: 0, on: false, el: null, target: null, t: 0 };
+const CURSVG = "<svg viewBox='0 0 52 52' width='100%' height='100%'><defs><linearGradient id='cg' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='#fff'/><stop offset='.45' stop-color='#c9cdfb'/><stop offset='.6' stop-color='#5a5fc4'/><stop offset='1' stop-color='#eef0ff'/></linearGradient></defs><path d='M2 2 L15 8 L31 27 L27 31 L8 15 Z' fill='url(#cg)' stroke='#0d0a2e' stroke-width='1.4' stroke-linejoin='round'/><path d='M2 2 L29 29' stroke='#fff' stroke-width='1' opacity='.8'/><path d='M22 36 L36 22 L39 25 L25 39 Z' fill='url(#cg)' stroke='#0d0a2e' stroke-width='1.4'/><path d='M31 31 L37 37' stroke='#0d0a2e' stroke-width='6' stroke-linecap='round'/><path d='M31 31 L37 37' stroke='#a9a3f0' stroke-width='3.2' stroke-linecap='round'/><path d='M42 49 C34 44 33 38 37 36 C40 35 42 37 42 39 C43 36 46 35 48 37 C51 40 48 45 42 49 Z' fill='#ff7ad9' stroke='#0d0a2e' stroke-width='1.4'/><path d='M38.5 38.5 C39.5 37.6 40.6 38 41 39' stroke='#fff' stroke-width='1.2' fill='none' stroke-linecap='round'/></svg>";
+function curStart() { CUR.el = h('div', { id: 'cur' }); CUR.el.innerHTML = CURSVG; document.body.append(CUR.el); CUR.x = innerWidth / 2; CUR.y = innerHeight / 2; CUR.t = performance.now();
+  addEventListener('pointerdown', (e) => { if (e.isTrusted && CUR.on && !CUR.target) curShow(false); }, true); requestAnimationFrame(curFrame); }
+function curShow(on) { CUR.on = on; CUR.el.style.display = on ? 'block' : 'none'; }
+function curPlace() { CUR.el.style.transform = `translate(${CUR.x.toFixed(1)}px,${CUR.y.toFixed(1)}px)`; }
+function curEvent(type, target) { const e = new PointerEvent(type, { bubbles: true, cancelable: true, composed: true, clientX: CUR.x, clientY: CUR.y, pointerId: 77, pointerType: 'mouse', isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1 }); (target || document.body).dispatchEvent(e); }
+function curFrame(now) { const dt = Math.min(0.05, (now - CUR.t) / 1000); CUR.t = now; const m = Math.hypot(CUR.lx, CUR.ly);
+  if (m > 0.01) { if (!CUR.on) curShow(true); const sp = rem() * (6 + 46 * m * m) * dt / m; CUR.x = clamp(CUR.x + CUR.lx * sp, 0, innerWidth - 1); CUR.y = clamp(CUR.y + CUR.ly * sp, 0, innerHeight - 1); curPlace(); if (CUR.target) curEvent('pointermove', CUR.target); }
+  requestAnimationFrame(curFrame); }
+function curPress(down) { if (!CUR.el) return;
+  if (down) { if (!CUR.on) { curShow(true); curPlace(); return; } if (CUR.target) return; const t = document.elementFromPoint(CUR.x, CUR.y); if (!t) return; CUR.target = t; CUR.el.classList.add('down'); curEvent('pointerdown', t); }
+  else if (CUR.target) { const t = CUR.target; CUR.target = null; CUR.el.classList.remove('down'); if (t.isConnected) curEvent('pointerup', t); else curEvent('pointerup', document.body); } }
 const meterFrac = (pk) => pk <= 0.0005 ? 0 : clamp((20 * Math.log10(pk) + 54) / 54);
 function leds(cls = '', style = '') { const i = h('i'); const e = h('div', { class: 'leds ' + cls, style }, i); let cur = 0; e.set = (f) => { cur = f > cur ? f : cur * 0.8 + f * 0.2; const pc = (cur * 100).toFixed(1) + '%'; if (cls.includes('v')) i.style.height = pc; else i.style.width = pc; }; return e; }
 
@@ -120,7 +137,7 @@ const kgrid = (cols, kids, style = '') => h('div', { class: 'kgrid', style: `gri
 function closePop() { document.querySelectorAll('.pop').forEach(p => p.remove()); }
 function popup(title, body, w) { closePop(); const p = h('div', { class: 'pop', onpointerdown: (e) => { if (e.target === p) closePop(); } }, h('div', { class: 'card', style: `width:${w || 56}rem` }, h('div', { class: 'row gap' }, h('div', { class: 'mich chrome grow', style: 'font-size:1.4rem;letter-spacing:.2rem' }, title), btn('CLOSE', closePop)), body)); document.body.append(p); return p; }
 function choose(title, items, fn, cols = 3, w) { popup(title, h('div', { class: 'scroll', style: `display:grid;grid-template-columns:repeat(${cols},1fr);gap:.5rem;max-height:70vh` }, items.map((it, i) => btn(it.label || it, () => { closePop(); fn(i, it); }, it.on ? 'on' : '', 'height:3.6rem'))), w); }
-function ask(title, value, fn) { const inp = h('input', { class: 'txt grow', value: value || '', maxlength: 24 }); popup(title, h('div', { class: 'row gap' }, inp, btn('OK', () => { const v = inp.value.trim(); closePop(); if (v) fn(v); }, 'on')), 46); setTimeout(() => inp.focus(), 50); }
+function ask(title, value, fn) { const done = () => { const v = inp.value.trim(); closePop(); if (v) fn(v); }, inp = h('input', { class: 'txt grow', value: value || '', maxlength: 24, enterkeyhint: 'done', onkeydown: (e) => { if (e.key === 'Enter') done(); } }); popup(title, h('div', { class: 'row gap' }, inp, btn('OK', done, 'on')), 46).classList.add('high'); setTimeout(() => { inp.focus(); inp.select(); }, 50); }
 function confirmPop(title, fn) { popup(title, h('div', { class: 'row gap' }, btn('NO', closePop, '', 'flex:1'), btn('YES', () => { closePop(); fn(); }, 'on', 'flex:1')), 36); }
 
 // ---- things both screens do

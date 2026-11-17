@@ -56,7 +56,7 @@ struct Engine {
   float bpm = 140, swing = 0, M[NM], perf[4] = {0.5f, 0, 0, 0}; int keyRoot = 9, scale = 1, mode = 0, edT = 0, edB = 0, loopA = 0, loopB = 4; double tick = 0; bool playing = false, recOn = false, loopOn = false, metro = false, ended = false, oneShot = false;
   std::map<std::string, int> sel; std::vector<std::shared_ptr<Sample>> smp;
   // live input
-  float inP[NP]; Strip inStrip; bool inMon = false; std::vector<float> recL, recR; size_t recN = 0; std::atomic<bool> recAudio{false}; double recTick = 0; std::atomic<float> inPeak{0};
+  float inP[NP]; Strip inStrip; bool inMon = false; std::vector<float> recL, recR; size_t recN = 0; std::atomic<bool> recAudio{false}, recArm{false}; double recTick = 0; std::atomic<float> inPeak{0};
   // buses and master
   Delay delay; Reverb reverb; Biquad mLow[2], mHigh[2]; float mEqV[2] = {-9, -9}; Limiter lim; Loudness loud; float glueEnv = 0, duckEnv = 0; SVF pfL, pfR, phL, phR; std::atomic<float> glueGr{0}, outPk[2];
   std::vector<float> pbL, pbR; int pbW = 0; double pbR_ = 0, tapeRate = 1; int stutLen = 0, stutPos = 0, stutStart = 0; bool stutOn = false, halfOn = false, tapeOn = false; float perfMix = 0; int metroLeft = 0; float metroPh = 0, metroHz = 1000;
@@ -269,6 +269,7 @@ struct Engine {
     }
     if (inL) {   // the live input: recorded dry, heard through its own channel
       float pk = 0; for (int i = 0; i < n; i++) { tl[i] = inL[i]; tr[i] = inR[i]; pk = std::max(pk, std::max(std::fabs(tl[i]), std::fabs(tr[i]))); } inPeak.store(std::max(pk, inPeak.load()));
+      if (recArm.load() && pk > 0.006f) { recArm = false; recN = 0; recTick = (playing && mode == 0) ? std::floor(tick / TPS) * TPS : 0; recAudio = true; }   // armed: the take starts with the first sound
       if (recAudio.load() && recN + n <= recL.size()) { std::memcpy(recL.data() + recN, tl, n * sizeof(float)); std::memcpy(recR.data() + recN, tr, n * sizeof(float)); recN += n; }
       if (inMon) { inStrip.process(tl, tr, n, inP, sr, duckEnv, km, false); const float sa = inP[SENDA] * inP[SENDA], sb = inP[SENDB] * inP[SENDB];
         for (int i = 0; i < n; i++) { mL[i] += tl[i]; mR[i] += tr[i]; aL[i] += tl[i] * sa; aR[i] += tr[i] * sa; bL[i] += tl[i] * sb; bR[i] += tr[i] * sb; } }

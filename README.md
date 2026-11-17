@@ -20,21 +20,23 @@ Like Music 2000: each track is a lane, and you place **blocks** on a timeline th
 Not in this build yet: MP3 export, a video export for TikTok, tempo and key detection of samples, snapping a recorded vocal to the grid, a typed-lyrics singing voice (the VOX engine sings vowels), named sections on the timeline, and moving 3D backdrops (they are stills that pulse with the music).
 
 ## Buttons
-| Button | Does |
+| Control | Does |
 |---|---|
-| A | play / pause |
+| Left stick | moves the cursor on the top screen (a small chrome sword) |
+| A | presses whatever the cursor points at; hold it and move to drag |
+| START | play / pause |
 | B | stop (twice: back to the start) |
 | X | record what you play into the block |
 | Y | undo |
-| START | play from the start |
 | SELECT | next view on the top screen |
 | L1 / R1 | previous / next track |
 | L3 / R3 | previous / next block of the track |
 | L2 | filter sweep while held |
 | R2 | stutter while held |
-| D-pad | move around the notes |
-| Left stick | level and pan of the selected track |
+| D-pad | move around the timeline or the notes |
 | Right stick | turns the knob you last touched |
+
+Touch works everywhere as well; the cursor hides when you touch the screen and returns when you move the stick.
 
 ## Getting your samples on
 Plug the Thor into the Mac, copy sample folders into the Thor's `Music` folder, then open FILES on the top screen. WAV, AIFF, MP3, FLAC, OGG and M4A load.

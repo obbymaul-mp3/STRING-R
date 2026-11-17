@@ -5,12 +5,19 @@
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; touch-action: none; }
 :root { --ink: #0d0a2e; --lcd: #07051c; --t: #d6d1ff; --d: #a9a3f0; --las: #b04bff; --pink: #ff7ad9; --w: #ffffff; --glow: #8f7bff; }
 html, body { width: 100%; height: 100%; overflow: hidden; background: #000; color: var(--t); font-family: Silk, monospace; }
-html.top { font-size: calc(100vw / 96); } html.bottom { font-size: calc(100vw / 62); }
+html.top { font-size: min(calc(100vw / 96), calc(100vh / 54)); } html.bottom { font-size: min(calc(100vw / 62), calc(100vh / 54)); }
+/* the stage is the designed screen, 96 x 54 rem on top and 62 x 54 below, scaled to fit and centred; the backdrop fills whatever is left over */
+#stage { position: fixed; height: 54rem; top: calc(50% - 27rem); } html.top #stage { width: 96rem; left: calc(50% - 48rem); } html.bottom #stage { width: 62rem; left: calc(50% - 31rem); }
 button { font: inherit; color: inherit; border: 0; background: none; }
 #bg { position: fixed; inset: 0; background-size: cover; background-position: center; transition: opacity .25s; will-change: transform, filter; }
-#dim { position: fixed; background: rgba(0, 0, 6, .5); }
-#plates { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-#app { position: fixed; inset: 0; }
+#dim { position: absolute; background: rgba(0, 0, 6, .5); }
+#plates { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#app { position: absolute; inset: 0; }
+#cur { position: fixed; left: 0; top: 0; width: 2.6rem; height: 2.6rem; z-index: 60; pointer-events: none; display: none; filter: drop-shadow(0 0 .35rem #b04bff) drop-shadow(0 .1rem .1rem #000); }
+#cur.down { filter: drop-shadow(0 0 .6rem #ff7ad9) drop-shadow(0 .1rem .1rem #000); }
+#spin { position: absolute; display: none; pointer-events: none; -webkit-mask-image: radial-gradient(closest-side, #000 82%, transparent 100%); mask-image: radial-gradient(closest-side, #000 82%, transparent 100%); }
+#sky { position: absolute; inset: 0; width: 100%; height: 100%; display: none; pointer-events: none; }
+.pop.high { align-items: flex-start; padding-top: 1.2rem; }
 .abs { position: absolute; } .row { display: flex; align-items: center; } .col { display: flex; flex-direction: column; } .grow { flex: 1; min-width: 0; min-height: 0; } .gap { gap: .4rem; }
 .mich { font-family: Mich, sans-serif; font-weight: 400; } .mono { font-family: Mono, monospace; }
 .chrome { background: linear-gradient(180deg, #fff 0%, #c3caf8 28%, #4a51b4 50%, #f2f4ff 57%, #98a2ea 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }

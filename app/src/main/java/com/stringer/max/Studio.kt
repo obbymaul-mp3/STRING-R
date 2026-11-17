@@ -203,7 +203,7 @@ object Studio {
     fun rec() {
         if (!recording) { if (!micOk) { say("ALLOW THE MICROPHONE FIRST"); return }; Native.cmd("inmon 1"); recording = Native.recStart(); if (!recording) say("COULD NOT RECORD"); return }
         recording = false
-        Thread { val f = File(takesDir(), "TAKE " + stamp() + ".wav"); val id = Native.recStop(f.absolutePath); say(if (id >= 0) "TAKE ADDED AS A TRACK" else "TOO SHORT TO KEEP") }.start()
+        Thread { val f = File(takesDir(), "TAKE " + stamp() + ".wav"); val id = Native.recStop(f.absolutePath); say(if (id >= 0) "TAKE ADDED AS A TRACK" else if (id == -2) "NOTHING WAS HEARD: NO TAKE" else "TOO SHORT TO KEEP") }.start()
     }
 
     // ---------------------------------------------------------------- export
@@ -308,11 +308,11 @@ object Studio {
     fun key(e: KeyEvent): Boolean {
         val down = e.action == KeyEvent.ACTION_DOWN; val first = down && e.repeatCount == 0
         when (e.keyCode) {
-            KeyEvent.KEYCODE_BUTTON_A -> if (first) act("PLAY")
+            KeyEvent.KEYCODE_BUTTON_A -> { if (first) act("A1") else if (!down) act("A0") }   // A presses whatever the stick cursor points at
             KeyEvent.KEYCODE_BUTTON_B -> if (first) { Native.cmd("stop"); if (System.currentTimeMillis() - lastStop < 600) Native.cmd("stop"); lastStop = System.currentTimeMillis(); Native.cmd("bump") }
             KeyEvent.KEYCODE_BUTTON_X -> if (first) act("REC")
             KeyEvent.KEYCODE_BUTTON_Y -> if (first) { Native.cmd("undo"); say("UNDO") }
-            KeyEvent.KEYCODE_BUTTON_START -> if (first) { Native.cmd("stop"); Native.cmd("stop"); Native.cmd("play"); Native.cmd("bump") }
+            KeyEvent.KEYCODE_BUTTON_START -> if (first) act("PLAY")
             KeyEvent.KEYCODE_BUTTON_SELECT -> if (first) act("VIEW")
             KeyEvent.KEYCODE_BUTTON_L1 -> if (first) act("TRACK-")
             KeyEvent.KEYCODE_BUTTON_R1 -> if (first) act("TRACK+")
@@ -347,9 +347,7 @@ object Studio {
             if (visible > 0) {
                 val f = focus
                 if (ry != 0f && f.isNotEmpty()) { if (f.startsWith("p ")) Native.cmd("nudge " + f.substring(2) + " " + (-ry * 0.012f)) else if (f.startsWith("m ")) Native.cmd("mnudge " + f.substring(2) + " " + (-ry * 0.012f)) }
-                if (ly != 0f) Native.cmd("nudge $selTrack 0 ${-ly * 0.008f}")
-                if (lx != 0f) Native.cmd("nudge $selTrack 1 ${lx * 0.01f}")
-                if ((ry != 0f || ly != 0f || lx != 0f) && ticks % 6 == 0) Native.cmd("bump")
+                if (ry != 0f && ticks % 6 == 0) Native.cmd("bump")
                 if (ticks % 120 == 60) { scanMidi(); pickInput() }
                 if (ticks % 300 == 299) autosave(false)
             }
@@ -363,7 +361,7 @@ object Studio {
         val sb = StringBuilder("{\"m\":\"").append(Native.meters()).append("\",\"acts\":[")
         synchronized(acts) { acts.forEachIndexed { i, a -> if (i > 0) sb.append(','); sb.append('[').append(a.first).append(',').append(q(a.second)).append(']') } }
         sb.append("],\"notice\":").append(q(if (System.currentTimeMillis() < noticeUntil) notice else "")).append(",\"busy\":").append(q(busy)).append(",\"rec\":").append(recording)
-            .append(",\"input\":").append(q(inputName)).append(",\"usb\":").append(usbInput).append(",\"mic\":").append(micOk).append(",\"midi\":").append(q(midiName)).append(",\"proj\":").append(q(project)).append('}')
+            .append(",\"input\":").append(q(inputName)).append(",\"usb\":").append(usbInput).append(",\"mic\":").append(micOk).append(",\"midi\":").append(q(midiName)).append(",\"proj\":").append(q(project)).append(",\"lx\":").append(lx).append(",\"ly\":").append(ly).append('}')
         return sb.toString()
     }
 }

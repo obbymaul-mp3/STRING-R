@@ -54,6 +54,28 @@ function trackMenu(t) {
   choose(T.name, items, (i) => { if (i === 0) ask('TRACK NAME', T.name, (v) => edit(`trk name ${t} "${v.toUpperCase().replace(/"/g, '')}"`)); else if (i === 1) confirmPop('DELETE ' + T.name + '?', () => edit(`trk del ${t}`, `sel track ${Math.max(0, t - 1)}`)); else edit(`trk ch ${t} ${(T.ch + 1) % 16}`); }, 2, 44);
 }
 
+// ---------------------------------------------------------------- the start screen's backdrop: the chrome heart turning, stars blinking behind it
+// The heart is a short film of ray-traced frames (bg/spin.webp) laid exactly over a still of the same scene without it (bg/sky.jpg).
+// If the film cannot be shown, the still heart is used instead.
+const SP = { img: null, sky: null, ok: null, on: false, stars: null };
+function splashPlace() { const W = innerWidth, H = innerHeight, k = Math.max(W / 1920, H / 1080), size = 1080 * k; if (SP.img) SP.img.style.cssText += `;left:${(W - size) / 2}px;top:${(H - size) / 2}px;width:${size}px;height:${size}px`; }
+function splashBg(on) {
+  const bg = document.getElementById('bg');
+  if (!SP.img) { SP.img = h('img', { id: 'spin', alt: '' }); SP.sky = h('canvas', { id: 'sky' }); bg.append(SP.sky, SP.img); SP.img.onload = () => { SP.ok = true; if (SP.on) splashBg(true); }; SP.img.onerror = () => { SP.ok = false; if (SP.on) splashBg(true); }; SP.img.src = 'bg/spin.webp'; addEventListener('resize', splashPlace); }
+  SP.on = on; const film = on && SP.ok === true;
+  SP.img.style.display = film ? 'block' : 'none'; SP.sky.style.display = on ? 'block' : 'none'; if (film) splashPlace();
+  if (on) { const name = film ? 'sky' : 'heart'; if (bgName !== name) { bgName = name; bg.style.backgroundImage = `url(bg/${name}.jpg)`; } if (!SP.raf) SP.raf = requestAnimationFrame(twinkle); }
+}
+function twinkle(now) {
+  SP.raf = 0; if (!SP.on) return; const cv = SP.sky, W = cv.clientWidth, H = cv.clientHeight; if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  if (!SP.stars) { let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647; SP.stars = Array.from({ length: 90 }, () => ({ x: rnd(), y: rnd() * 0.86, r: 0.5 + rnd() * 1.6, sp: 0.6 + rnd() * 2.4, ph: rnd() * 6.28, big: rnd() > 0.86 })); }
+  const g = cv.getContext('2d'), t = now / 1000, cx = W / 2, cy = H / 2, clear = Math.min(W, H) * 0.3; g.clearRect(0, 0, W, H);
+  for (const s of SP.stars) { const x = s.x * W, y = s.y * H; if (Math.hypot(x - cx, y - cy) < clear) continue; const a = Math.pow(0.5 + 0.5 * Math.sin(t * s.sp + s.ph), 3); if (a < 0.03) continue;
+    g.globalAlpha = a; g.fillStyle = '#eef0ff'; g.beginPath(); g.arc(x, y, s.r, 0, 6.283); g.fill();
+    if (s.big) { const L = 6 + 16 * a; g.strokeStyle = '#cfd4ff'; g.lineWidth = 1; g.globalAlpha = a * 0.8; g.beginPath(); g.moveTo(x - L, y); g.lineTo(x + L, y); g.moveTo(x, y - L); g.lineTo(x, y + L); g.stroke(); } }
+  g.globalAlpha = 1; SP.raf = requestAnimationFrame(twinkle);
+}
+
 // ---------------------------------------------------------------- header, rail, tabs
 function chrome() {
   const st = S.st; hd.title.textContent = st.title; hd.bpm.textContent = st.bpm; hd.key.textContent = D.NOTES[st.key] + ' ' + D.SCALES[st.scale][0].slice(0, 3); hd.len.textContent = st.bars;
@@ -74,8 +96,9 @@ function chrome() {
 let wasHome = null;
 function render() {
   if (!S.st) return; const home = sel('home', 1) === 1;
-  if (home !== wasHome) { wasHome = home; splash.style.display = home ? 'block' : 'none'; main.style.display = home ? 'none' : 'block'; setPlates(1920, 1080, home ? HOMEPLATES : MAINPLATES); document.getElementById('dim').style.cssText = home ? 'left:0;right:0;top:32rem;bottom:0;background:linear-gradient(180deg,rgba(0,0,8,0),rgba(0,0,8,.92) 55%)' : 'left:15.8rem;top:5.2rem;right:0;bottom:0'; bgName = ''; }
-  if (home) { const e = document.getElementById('bg'); if (bgName !== 'heart') { bgName = 'heart'; e.style.backgroundImage = 'url(bg/heart.jpg)'; } return; }
+  if (home !== wasHome) { wasHome = home; splash.style.display = home ? 'block' : 'none'; main.style.display = home ? 'none' : 'block'; setPlates(1920, 1080, home ? HOMEPLATES : MAINPLATES); document.getElementById('dim').style.cssText = home ? 'left:0;right:0;top:32rem;bottom:0;background:linear-gradient(180deg,rgba(0,0,8,0),rgba(0,0,8,.92) 55%)' : 'left:15.8rem;top:5.2rem;right:0;bottom:0'; bgName = ''; if (!home) splashBg(false); }
+  if (home) { splashBg(true); return; }
+  if (sel('view', 0) === 0 && sel('autoloop', 0)) { C('loop 0'); C('mode 0'); C('sel autoloop 0'); sync(); return; }   // the loop that editing a block switched on ends when you come back to the song
   chrome(); const v = sel('view', 0), T = trk(), key = v === 0 || v === 3 ? 'v' + v : v + ':' + tIdx() + ':' + (T ? T.type : -1) + ':' + (v === 1 ? (edBlock() ? 1 : 0) : 0);
   if (key !== curKey) { curKey = key; body.innerHTML = ''; cur = [songView, notesView, sampleView, filesView][v](); body.append(cur.el); }
   setBg(v === 1 && T && T.type === 0 ? 'urchin' : BGS[v], v === 0 ? 0.42 : 0.5); cur.update(); toolsEl.innerHTML = ''; if (cur.tools) toolsEl.append(...cur.tools());
@@ -96,7 +119,7 @@ function onAct(name) {
 
 // ---------------------------------------------------------------- SONG: every track's blocks, left to right
 function songView() {
-  const W = 77.4, LH = 6, PITCH = 6.5, rulerEl = h('div', { class: 'abs', style: 'left:0;top:0;width:100%;height:1.5rem;border-bottom:.1rem solid rgba(207,202,255,.8)' }), loopEl = h('div', { class: 'abs', style: 'top:2.4rem;height:.3rem;background:#ff7ad9;box-shadow:0 0 .6rem #ff7ad9' }), lanes = h('div', { class: 'abs', style: `left:0;top:4.1rem;width:100%;height:${PITCH * 5 - 0.5}rem;overflow:hidden` }), head = h('div', { class: 'abs', style: 'top:0;width:.15rem;height:36.1rem;background:#fff;box-shadow:0 0 .7rem #b04bff,0 0 2rem #b04bff;pointer-events:none' }), shelf = h('div', { class: 'abs row gap', style: 'left:0;top:37.3rem;width:100%;height:3.6rem' });
+  const W = 77.4, LH = 6, PITCH = 6.5, rulerEl = h('div', { class: 'abs', style: 'left:0;top:0;width:100%;height:1.5rem;border-bottom:.1rem solid rgba(207,202,255,.8)' }), loopEl = h('div', { class: 'abs', style: 'top:2.4rem;height:.3rem;background:#ff7ad9;box-shadow:0 0 .6rem #ff7ad9' }), lanes = h('div', { id: 'lanes', class: 'abs', style: `left:0;top:4.1rem;width:100%;height:${PITCH * 5 - 0.5}rem;overflow:hidden` }), head = h('div', { class: 'abs', style: 'top:0;width:.15rem;height:36.1rem;background:#fff;box-shadow:0 0 .7rem #b04bff,0 0 2rem #b04bff;pointer-events:none' }), shelf = h('div', { class: 'abs row gap', style: 'left:0;top:37.3rem;width:100%;height:3.6rem' });
   const el = h('div', { class: 'abs', style: 'inset:0' }, rulerEl, loopEl, lanes, head, shelf); const bw = () => W / U.zb; let drag = null;
   const barAt = (e) => { const r = lanes.getBoundingClientRect(); return U.bar0 + Math.floor((e.clientX - r.left) / r.width * U.zb); }, laneAt = (e) => { const r = lanes.getBoundingClientRect(); return U.row0 + Math.floor((e.clientY - r.top) / (PITCH * rem())); };
   rulerEl.addEventListener('pointerdown', (e) => { const r = rulerEl.getBoundingClientRect(); C('seek ' + (U.bar0 + Math.floor((e.clientX - r.left) / r.width * U.zb))); sync(); });
@@ -107,7 +130,7 @@ function songView() {
     else { C('seek ' + bar); U.selT = -1; if (t !== tIdx()) setTrack(t); else sync(); } });
   lanes.addEventListener('pointermove', (e) => { if (!drag) return; const to = Math.max(0, barAt(e) - drag.off); if (to !== drag.to) { drag.to = to; drag.moved = true; const b = lanes.querySelector('[data-sel="1"]'); if (b) b.style.left = ((to - U.bar0) * bw() + 0.1) + 'rem'; } });
   const up = () => { if (!drag) return; const d = drag; drag = null; if (d.moved && d.to !== d.from) { U.selBar = d.to; edit(`pl move ${d.t} ${d.from} ${d.to}`); } else if (d.was) openBlock(d.t, d.b, d.from); }; lanes.addEventListener('pointerup', up); lanes.addEventListener('pointercancel', up);
-  function openBlock(t, b, bar) { const B = S.st.tracks[t].blocks[b]; C(`sel track ${t}`); C(`ed ${t} ${b}`); if (bar != null) { C(`loop 1 ${bar} ${bar + B.bars}`); C('mode 0'); } else C('mode 1'); U.selN.clear(); U.select = false; U.bar = 0; U.krow0 = null; C('sel view 1'); sync(); }
+  function openBlock(t, b, bar) { const B = S.st.tracks[t].blocks[b]; C(`sel track ${t}`); C(`ed ${t} ${b}`); if (bar != null) { C(`loop 1 ${bar} ${bar + B.bars}`); C('sel autoloop 1'); C('mode 0'); } else C('mode 1'); U.selN.clear(); U.select = false; U.bar = 0; U.krow0 = null; C('sel view 1'); sync(); }
   function miniNotes(B) { const cv = h('canvas', { style: 'width:100%;height:1.6rem;display:block' }); requestAnimationFrame(() => { if (!cv.isConnected) return; const [g, w, hh] = fit(cv), len = B.bars * BAR; let lo = 127, hi = 0; for (const n of B.n) { lo = Math.min(lo, n[2]); hi = Math.max(hi, n[2]); } const sp = Math.max(1, hi - lo); g.fillStyle = 'rgba(13,10,46,.7)'; for (const n of B.n) g.fillRect(n[0] / len * w, (hh - 3) * (1 - (n[2] - lo) / sp), Math.max(1.5, Math.min(n[1], len - n[0]) / len * w - 1), 3); }); return cv; }
   function update() {
     const st = S.st, zb = U.zb; U.bar0 = clamp(U.bar0, 0, Math.max(0, Math.ceil((st.bars + 8) / 4) * 4 - zb)); rulerEl.innerHTML = '';
@@ -128,7 +151,7 @@ function songView() {
       btn('DELETE', need(() => { const t0 = U.selT, b0 = U.selBar; U.selT = -1; edit(`pl del ${t0} ${b0}`); })));
   }
   const tools = () => { const st = S.st; return [two('SHOW', U.zb + ' BARS', () => { U.zb = U.zb === 16 ? 32 : U.zb === 32 ? 64 : 16; render(); }), btn('◀', () => { U.bar0 = Math.max(0, U.bar0 - U.zb / 2); render(); }, 'sq'), btn('▶', () => { U.bar0 += U.zb / 2; render(); }, 'sq'),
-    two('LOOP', st.loopOn ? `BARS ${st.loopA + 1}–${st.loopB}` : 'OFF', () => { C(`loop ${st.loopOn ? 0 : 1}`); sync(); }, st.loopOn ? 'on' : ''), two('LOOP THE', 'LIT BLOCK', () => { const T = st.tracks[U.selT], p = T && T.pl.find(q => q[0] === U.selBar); if (!p) return toast('TAP A BLOCK FIRST'); C(`loop 1 ${p[0]} ${p[0] + T.blocks[p[1]].bars}`); sync(); }),
+    two('LOOP', st.loopOn ? `BARS ${st.loopA + 1}–${st.loopB}` : 'OFF', () => { C(`loop ${st.loopOn ? 0 : 1}`); C('sel autoloop 0'); sync(); }, st.loopOn ? 'hot' : ''), two('LOOP THE', 'LIT BLOCK', () => { const T = st.tracks[U.selT], p = T && T.pl.find(q => q[0] === U.selBar); if (!p) return toast('TAP A BLOCK FIRST'); C(`loop 1 ${p[0]} ${p[0] + T.blocks[p[1]].bars}`); C('sel autoloop 0'); sync(); }),
     two('LENGTH', `${st.bars} BARS · ${Math.floor(st.bars * 240 / st.bpm / 60)}:${pad2(Math.floor(st.bars * 240 / st.bpm % 60))}`, () => {})]; };
   return { el, update, tools, fast: (m) => { const x = (m.tick / BAR - U.bar0) * bw(); head.style.display = m.mode === 0 && x >= 0 && x <= W ? 'block' : 'none'; head.style.left = x + 'rem'; if (m.playing && m.mode === 0 && !drag) { const b = Math.floor(m.tick / BAR); if (b >= U.bar0 + U.zb || b < U.bar0) { U.bar0 = Math.floor(b / (U.zb / 2)) * (U.zb / 2); update(); } } },
     act: (n) => { if (n === 'LEFT') U.bar0 = Math.max(0, U.bar0 - 4); else if (n === 'RIGHT') U.bar0 += 4; else if (n === 'UP') return transport('TRACK-'); else if (n === 'DOWN') return transport('TRACK+'); render(); } };

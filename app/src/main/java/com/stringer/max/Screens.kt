@@ -59,9 +59,10 @@ open class ScreenActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if (android.os.Build.VERSION.SDK_INT >= 28) window.attributes = window.attributes.also { it.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES }   // use the whole panel, corners included
         page = intent.getStringExtra("page") ?: choosePage()
         web = WebView(this)
-        web.settings.javaScriptEnabled = true; web.settings.domStorageEnabled = true
+        web.settings.javaScriptEnabled = true; web.settings.domStorageEnabled = true; web.settings.mediaPlaybackRequiresUserGesture = false
         web.setBackgroundColor(0xFF03040A.toInt()); web.overScrollMode = View.OVER_SCROLL_NEVER
         web.isHapticFeedbackEnabled = false; web.isLongClickable = false; web.setOnLongClickListener { true }
         web.addJavascriptInterface(Bridge(), "SM")
@@ -70,7 +71,7 @@ open class ScreenActivity : Activity() {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                 val u = request.url; if (u.host != "sm.local") return null; val path = u.path ?: return null
                 return try {
-                    val name = path.removePrefix("/"); val mime = when (name.substringAfterLast('.')) { "html" -> "text/html"; "js" -> "application/javascript"; "css" -> "text/css"; "ttf" -> "font/ttf"; else -> "application/octet-stream" }
+                    val name = path.removePrefix("/"); val mime = when (name.substringAfterLast('.')) { "html" -> "text/html"; "js" -> "application/javascript"; "css" -> "text/css"; "ttf" -> "font/ttf"; "jpg" -> "image/jpeg"; "png" -> "image/png"; "webp" -> "image/webp"; "mp4" -> "video/mp4"; else -> "application/octet-stream" }
                     WebResourceResponse(mime, if (mime.startsWith("text") || mime.endsWith("javascript")) "utf-8" else null, assets.open(name))
                 } catch (e: Exception) { WebResourceResponse("text/plain", "utf-8", 404, "Not found", emptyMap(), java.io.ByteArrayInputStream(ByteArray(0))) }
             }
