@@ -1,13 +1,12 @@
 // STRING-R: the bottom screen. The sound of the selected track, its effects, the mixer, the live input, the master, and pads to play.
 'use strict';
 document.documentElement.className = 'bottom';
-const TABS = ['SOUND', 'FX', 'MIX', 'INPUT', 'MASTER', 'PLAY'], TBG = ['heart_b', 'urchin_b', 'star_b', 'drop_b', 'portal_b', 'blade'];
+const TABS = ['SOUND', 'FX', 'MIX', 'INPUT', 'MASTER', 'PLAY'], TBG = ['niche', 'niche', 'hall', 'niche', 'hall', 'niche'];
 const V = { page: 0, pads16: null, mixPage: 0, mp: '', target: -10, mpage: 0, oct: 0, sound: {}, vox: '' };
 let hd = {}, body, tabs = [], cur = null, curKey = '', main, home, wasHome = null;
 const MAINPLATES = PL.plate([[0, 0], [1240, 0], [1240, 84], [1200, 116], [40, 116], [0, 84]], 'plate', PL.rivet(20, 20) + PL.rivet(1220, 20) + '') +
   PL.plate([[0, 1080], [0, 992], [36, 960], [1204, 960], [1240, 992], [1240, 1080]], 'plate', PL.rivet(20, 1060) + PL.rivet(1220, 1060)) + PL.laser(40, 950, 1160) + PL.cross(20, 136) + PL.cross(1220, 136);
-const HOMEPLATES = PL.plate([[0, 0], [420, 0], [380, 40], [60, 40], [40, 60], [40, 360], [0, 400]], 'plateH', PL.rivet(20, 20)) + PL.plate([[1240, 0], [820, 0], [860, 40], [1180, 40], [1200, 60], [1200, 360], [1240, 400]], 'plateH', PL.rivet(1220, 20)) +
-  PL.plate([[0, 1080], [0, 700], [40, 740], [40, 1020], [60, 1040], [520, 1040], [560, 1080]], 'plateH', PL.rivet(20, 1060)) + PL.plate([[1240, 1080], [1240, 700], [1200, 740], [1200, 1020], [1180, 1040], [720, 1040], [680, 1080]], 'plateH', PL.rivet(1220, 1060)) + PL.laser(120, 250, 1000);
+const HOMEPLATES = '';
 const upd = (el) => el.querySelectorAll('.knob').forEach(k => k.upd && k.upd());
 const play = (t, n, ms) => { C(`non ${t} ${n} 0.9`); setTimeout(() => C(`noff ${t} ${n}`), ms || 200); };
 const panel = (style, ...k) => h('div', { class: 'lcd', style: 'padding:.7rem;' + style }, k);
@@ -15,7 +14,7 @@ const panel = (style, ...k) => h('div', { class: 'lcd', style: 'padding:.7rem;' 
 function build() {
   const app = document.getElementById('app'), A = (style, ...k) => h('div', { class: 'abs', style }, k);
   hd.name = h('b', { style: 'display:block;width:17rem;text-align:left;font-size:1rem;color:#fff;white-space:nowrap;overflow:hidden;font-weight:700' }); hd.kind = lab('');
-  hd.play = btn('▶', () => transport('PLAY'), 'sq', 'font-size:1.3rem;height:4rem;width:4rem'); hd.rec = btn('●', () => transport('REC'), 'sq', 'font-size:1.3rem;height:4rem;width:4rem;color:#ff7ad9'); hd.cpu = lab('', 'hi'); hd.m = leds('', 'width:100%');
+  hd.play = btn('▶', () => transport('PLAY'), 'sq', 'font-size:1.3rem;height:4rem;width:4rem'); hd.rec = btn('●', () => transport('REC'), 'sq', 'font-size:1.3rem;height:4rem;width:4rem;color:#ff5fb4'); hd.cpu = lab('', 'hi'); hd.m = leds('', 'width:100%');
   body = A('left:1.2rem;top:6.5rem;width:59.6rem;height:41rem');
   tabs = TABS.map((v, i) => btn(v, () => setSel('tab', i), 'off', 'flex:1;height:3.8rem;font-size:1rem'));
   main = A('inset:0', A('left:1.4rem;top:.7rem;width:59.2rem;height:4.2rem;display:flex;align-items:center;gap:.5rem',
@@ -27,8 +26,8 @@ function build() {
 function render() {
   if (!S.st) return; const isHome = sel('home', 1) === 1, heart = !isHome && hsOn(), mode = isHome ? 'home' : heart ? 'heart' : 'main';
   if (mode !== wasHome) { wasHome = mode; home.style.display = isHome ? 'block' : 'none'; main.style.display = mode === 'main' ? 'block' : 'none'; hsBottomShow(document.getElementById('app'), heart); setPlates(1240, 1080, isHome ? HOMEPLATES : heart ? HSBPLATES() : MAINPLATES); document.getElementById('dim').style.cssText = isHome ? 'inset:0' : 'left:0;right:0;top:5.8rem;bottom:6rem'; curKey = ''; if (isHome) homeView(); }
-  if (isHome) { setBg('tri', 0.45); return; }
-  if (heart) { document.getElementById('dim').style.cssText = 'inset:0'; setBg('heart_b', 0.66); hsBottomRender(); return; }
+  if (isHome) { setBg('niche', 0.45); return; }
+  if (heart) { document.getElementById('dim').style.cssText = 'inset:0'; setBg('hall', 0.6); hsBottomRender(); return; }
   const st = S.st, T = trk(), tab = sel('tab', 0); fitTxt(hd.name, T ? T.name : 'NO TRACK'); hd.kind.textContent = T ? `TRACK ${pad2(tIdx() + 1)} · ${D.TYPES[T.type]}` : ''; hd.play.textContent = st.playing ? '❚❚' : '▶'; hd.play.classList.toggle('on', !!st.playing); hd.rec.classList.toggle('hot', !!st.rec);
   tabs.forEach((b, i) => { b.classList.toggle('off', i !== tab); b.classList.toggle('on', i === tab); });
   const key = [tab, tIdx(), T ? T.type : -1, T ? T.eng : 0, V.page, V.mpage, V.mixPage, st.tracks.length, T && T.type === 2 ? Math.round(T.P[P.S_MODE] * 4) : 0].join(':');
@@ -41,12 +40,12 @@ function onAct(name) { if (hsOn()) return; if (name === 'LEFT' || name === 'RIGH
 // ---------------------------------------------------------------- the start screen
 function homeView() {
   home.innerHTML = ''; let ps = []; try { ps = JSON.parse(SMB.projects()); } catch (e) {}
-  const go = () => { C('sel home 0'); sync(true); }, big = (t, sub, fn, cls) => h('button', { class: 'btn two ' + cls, style: 'height:6rem;width:100%;padding:0 1.4rem;gap:.4rem', tap: fn }, h('b', { style: 'font-size:1.4rem;font-weight:700;letter-spacing:.2rem' }, t), h('span', { class: 'lab', style: cls === 'on' ? 'color:#0d0a2e' : '' }, sub));
-  const list = h('div', { class: 'list scroll lcd', style: 'height:17.6rem' }, ps.length ? ps.map(p => h('div', { class: 'it', tap: () => { SMB.open(p.n); setTimeout(go, 300); } }, h('span', { style: 'color:#ff7ad9' }, '▸'), p.n)) : h('div', { class: 'it' }, 'YOUR SAVED SONGS APPEAR HERE'));
-  home.append(h('div', { class: 'abs col', style: 'left:6rem;top:3.4rem;width:50rem;align-items:center;gap:.4rem' }, h('div', { class: 'mich chrome', style: 'font-size:3.4rem;letter-spacing:.9rem;line-height:4rem' }, 'STRING-R'), h('div', { class: 'mono', style: 'font-size:.8rem;letter-spacing:.5rem;color:#fff' }, 'WHAT ARE WE MAKING TODAY')),
+  const go = () => { C('sel home 0'); sync(true); }, big = (t, sub, fn, cls) => h('button', { class: 'btn two ' + cls, style: 'height:6rem;width:100%;padding:0 1.4rem;gap:.4rem', tap: fn }, h('b', { style: 'font-size:1.4rem;font-weight:700;letter-spacing:.2rem' }, t), h('span', { class: 'lab', style: cls === 'on' ? 'color:#1a0b33' : '' }, sub));
+  const list = h('div', { class: 'list scroll lcd', style: 'height:17.6rem' }, ps.length ? ps.map(p => h('div', { class: 'it', tap: () => { SMB.open(p.n); setTimeout(go, 300); } }, h('span', { style: 'color:#ff5fb4' }, '▸'), p.n)) : h('div', { class: 'it' }, 'YOUR SAVED SONGS APPEAR HERE'));
+  home.append(h('div', { class: 'abs col', style: 'left:6rem;top:3.4rem;width:50rem;align-items:center;gap:.4rem' }, h('div', { class: 'mich chrome logo', style: 'font-size:3.4rem;line-height:4rem' }, 'String-R'), h('div', { class: 'mono', style: 'font-size:.8rem;letter-spacing:.5rem;color:#fff' }, 'WHAT ARE WE MAKING TODAY')),
     h('div', { class: 'abs col', style: 'left:6rem;top:14.5rem;width:50rem;gap:.7rem' }, big('CONTINUE', (S.poll.proj || S.st.title || 'YOUR LAST SONG') + ' · ' + S.st.bars + ' BARS · ' + S.st.bpm + ' BPM', go, 'on'),
       h('div', { class: 'row', style: 'gap:.7rem' }, h('div', { class: 'grow' }, big('NEW SONG', 'FOUR EMPTY TRACKS', () => { SMB.fresh('blank'); go(); }, '')), h('div', { class: 'grow' }, big('DEMO SONG', 'FIRST LIGHT · 138 BPM TRANCE', () => { SMB.fresh('demo'); go(); }, ''))),
-      lab('OPEN A SAVED SONG', 'hi'), list, h('div', { class: 'mono', style: 'font-size:.65rem;letter-spacing:.15rem;color:#dcd8ff;text-align:center' }, (SMB.info() || '').toUpperCase())));
+      lab('OPEN A SAVED SONG', 'hi'), list, h('div', { class: 'mono', style: 'font-size:.65rem;letter-spacing:.15rem;color:#f4e6c4;text-align:center' }, (SMB.info() || '').toUpperCase())));
 }
 
 // ---------------------------------------------------------------- SOUND
@@ -76,7 +75,7 @@ function drumSound() {
   function fill() { const ps = pads(), sp = clamp(sel('pad', 0), 0, 15), big = n16(); grid.innerHTML = ''; grid.style.gridTemplateRows = `repeat(${big ? 4 : 2},1fr)`;
     const order = big ? [12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3] : [4, 5, 6, 7, 0, 1, 2, 3];
     for (const i of order) { const p = ps[i], sm = p.type === 9 ? S.st.smp.find(s => s.id === p.smp) : null, on = i === sp, empty = p.type === 10;
-      grid.append(hold(h('button', { class: 'btn ' + (on ? 'on' : ''), style: `height:auto;min-height:0;padding:.5rem;flex-direction:column;align-items:flex-start;justify-content:space-between;white-space:normal;text-align:left;${empty && !on ? 'opacity:.55' : ''}` }, h('span', { class: 'mono', style: 'font-size:.7rem;letter-spacing:.1rem' }, 'PAD ' + pad2(i + 1)), h('span', { style: 'font-size:.85rem;word-break:break-word;line-height:1.1' }, sm ? sm.name.slice(0, 18) : D.DRUMS[p.type]), h('span', { class: 'mono', style: `font-size:.68rem;letter-spacing:.08rem;color:${on ? '#0d0a2e' : '#ff7ad9'}` }, sm ? 'YOUR SAMPLE' : empty ? 'TAP, THEN LOAD' : 'SYNTH')), () => { C(`non ${t} ${i} 0.9`); if (sel('pad', 0) !== i) { C(`sel pad ${i}`); sync(); } }, () => C(`noff ${t} ${i}`))); }
+      grid.append(hold(h('button', { class: 'btn ' + (on ? 'on' : ''), style: `height:auto;min-height:0;padding:.5rem;flex-direction:column;align-items:flex-start;justify-content:space-between;white-space:normal;text-align:left;${empty && !on ? 'opacity:.55' : ''}` }, h('span', { class: 'mono', style: 'font-size:.7rem;letter-spacing:.1rem' }, 'PAD ' + pad2(i + 1)), h('span', { style: 'font-size:.85rem;word-break:break-word;line-height:1.1' }, sm ? sm.name.slice(0, 18) : D.DRUMS[p.type]), h('span', { class: 'mono', style: `font-size:.68rem;letter-spacing:.08rem;color:${on ? '#1a0b33' : '#ff5fb4'}` }, sm ? 'YOUR SAMPLE' : empty ? 'TAP, THEN LOAD' : 'SYNTH')), () => { C(`non ${t} ${i} 0.9`); if (sel('pad', 0) !== i) { C(`sel pad ${i}`); sync(); } }, () => C(`noff ${t} ${i}`))); }
     const p = ps[sp]; side.innerHTML = '';
     side.append(h('div', { class: 'row gap' }, two('KIT', S.st.tracks[t].name.slice(0, 11), kitPicker, 'grow'), btn('MY KITS', kitPicker), btn('SAVE KIT', () => ask('NAME THIS KIT', S.st.tracks[t].name.replace(/ KIT$/, ''), (v) => { SMB.saveKit(v.toUpperCase()); setTimeout(() => sync(true), 300); }), 'hot')),
       panel('display:flex;flex-direction:column;gap:.5rem;flex:1', h('div', { class: 'row gap' }, lab('PAD ' + pad2(sp + 1), 'hi'), h('div', { class: 'grow' }), btn(D.DRUMS[p.type] + ' ▾', () => choose('WHAT IS ON THIS PAD', D.DRUMS.map((d, i) => ({ label: d, on: i === p.type })).filter((_, i) => i !== 9), (i) => edit(`pad ${t} ${sp} type ${i >= 9 ? 10 : i}`), 4, 54), 'sm'), btn('LOAD MY SAMPLE', () => { C('sel view 3'); sync(); toast('PICK A FILE ON THE TOP SCREEN → DRUM PAD ' + pad2(sp + 1)); }, 'sm on')),
@@ -85,17 +84,59 @@ function drumSound() {
   function update() { const k = JSON.stringify([pads().map(p => [p.type, p.smp]), sel('pad', 0), n16(), S.st.tracks[t].name]); if (k !== last) { last = k; fill(); } else upd(el); }
   return { el, update };
 }
+// The grain engine, drawn as a sack of rice with a hole in it. Each grain of rice is a grain of sound.
+// POSITION slides the hole along the sack, SIZE is how long a grain is, DENSITY how many pour, SPRAY how far they scatter as they leave,
+// SPREAD how wide they drift on the way down, SHATTER breaks them when they land. FREEZE hangs them in the air; REVERSE sends them back up into the sack.
+function riceBag(t) {
+  const W = 104, H = 150, cv = h('canvas', { width: W, height: H, role: 'img', 'aria-label': 'A sack of rice pouring grains: a picture of the grain engine', style: 'height:100%;aspect-ratio:104/150;image-rendering:pixelated;background:#0a0420;border:.15rem solid #5a3fa8;flex-shrink:0' });
+  const g = cv.getContext('2d'), grains = [], pile = new Float32Array(W), FLOOR = H - 6; let lv = 0, acc = 0, last = 0, seed = 3;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647, par = (k) => { const T = S.st && S.st.tracks[t]; return T ? (T.P[k] || 0) : 0; };
+  const R = (x, y, w, hh, c) => { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(hh)); };
+  function sack(hx, sway) {
+    const x0 = 14 + sway, x1 = 90 + sway, top = 16, bot = 72;
+    R(x0 + 30, 2, 16, 6, '#1a0b33'); R(x0 + 32, 3, 12, 4, '#c9a36a'); R(x0 + 26, 8, 24, 6, '#1a0b33'); R(x0 + 28, 9, 20, 4, '#e0c088');            // the tied neck
+    R(x0 + 24, 13, 28, 3, '#1a0b33'); R(x0 + 25, 13, 26, 2, '#ff5fb4');                                                                              // the cord
+    for (let y = top; y <= bot; y++) { const k = (y - top) / (bot - top), hw = 38 * (0.48 + 0.52 * Math.sin(Math.PI * (0.08 + 0.56 * k))) + (y > bot - 4 ? (y - bot + 4) * 1.2 : 0), l = x0 + 38 - hw, r = x0 + 38 + hw;
+      R(l - 1, y, r - l + 2, 1, '#1a0b33'); R(l, y, r - l, 1, y > bot - 5 ? '#8a6638' : '#c9a36a'); R(l, y, 3, 1, '#e0c088'); R(r - 6, y, 6, 1, '#9a7645'); }
+    for (let y = top + 4; y < bot - 2; y += 5) for (let x = x0 + 6 + (y % 2) * 3; x < x1 - 8; x += 7) R(x, y, 2, 1, '#b08a54');                       // the weave
+    const hy = 38; for (const [dx, dy, w] of [[1, 0, 2], [5, 0, 2], [0, 1, 8], [0, 2, 8], [1, 3, 6], [2, 4, 4], [3, 5, 2]]) R(x0 + 34 + dx, hy + dy, w, 1, '#ff5fb4'); R(x0 + 35, hy + 1, 1, 1, '#fff');   // the heart stamped on it
+    R(hx - 4, bot - 1, 8, 3, '#1a0b33'); R(hx - 3, bot, 6, 2, '#0a0420');                                                                           // the hole
+    return bot + 1;
+  }
+  function frame(now) {
+    if (!cv.isConnected) return; const dt = Math.min(0.05, (now - last) / 1000) || 0.016; last = now;
+    const pos = par(P.G_POS), size = par(P.G_SIZE), dens = par(P.G_DENS), spray = par(P.G_SPRAY), spread = par(P.G_SPREAD), shat = par(P.G_SHATTER), frozen = par(P.G_FREEZE) > 0.5, rev = par(P.S_REV) > 0.5;
+    const sway = Math.round(Math.sin(now / 900) * 1.5 * (0.3 + lv)), hx = 26 + pos * 52 + sway;
+    g.clearRect(0, 0, W, H); for (let y = 0; y < H; y += 4) R(0, y, W, 1, 'rgba(90,63,168,.12)');
+    const mouth = sack(hx, sway), gl = 2 + Math.round(size * 6);
+    // new grains: always a trickle so the picture explains itself, a pour when the track is sounding
+    if (!frozen) { acc += dt * (4 + dens * 46) * (0.3 + Math.min(1, lv * 2.2)); while (acc >= 1 && grains.length < 260) { acc -= 1; grains.push({ x: hx + (rnd() - 0.5) * 5, y: rev ? FLOOR - pile[Math.max(0, Math.min(W - 1, Math.round(hx)))] : mouth, vx: (rnd() - 0.5) * (4 + spray * 46), vy: rev ? -(40 + rnd() * 30) : 12 + rnd() * 18, l: gl, c: rnd() > 0.82 ? '#fff' : '#f4e6c4', dust: false, life: 1 }); } }
+    for (let i = grains.length - 1; i >= 0; i--) { const q = grains[i];
+      if (!frozen) { if (rev) { q.x += (hx - q.x) * dt * 2.2; q.y += q.vy * dt; if (q.y <= mouth) { grains.splice(i, 1); continue; } }
+        else { q.vy += 150 * dt; q.vx += (rnd() - 0.5) * spread * 90 * dt; q.x += q.vx * dt; q.y += q.vy * dt; if (q.dust) { q.life -= dt * 2.4; if (q.life <= 0) { grains.splice(i, 1); continue; } }
+          const xi = Math.max(0, Math.min(W - 1, Math.round(q.x))); if (q.x < 1 || q.x > W - 2) q.vx *= -0.5;
+          if (q.y + q.l >= FLOOR - pile[xi]) { if (!q.dust) { pile[xi] = Math.min(34, pile[xi] + 0.55); if (shat > 0.05 && rnd() < shat) for (let k = 0; k < 2 + Math.round(shat * 3); k++) grains.push({ x: q.x, y: FLOOR - pile[xi] - 2, vx: (rnd() - 0.5) * 60, vy: -(20 + rnd() * 50 * shat), l: 1, c: '#ff5fb4', dust: true, life: 1 }); } grains.splice(i, 1); continue; } } }
+      R(q.x, q.y, 1, q.l, q.c); if (!q.dust && q.l > 3) R(q.x, q.y, 1, 1, '#fff'); }
+    // the heap settles sideways and slowly empties, so it never fills the screen
+    if (!frozen) for (let x = 1; x < W - 1; x++) { const d = pile[x] - (pile[x - 1] + pile[x + 1]) / 2; if (d > 1.2) { pile[x] -= d * 0.25; pile[x - 1] += d * 0.125; pile[x + 1] += d * 0.125; } pile[x] = Math.max(0, pile[x] - dt * (rev ? 3 : 0.9)); }
+    R(0, FLOOR, W, H - FLOOR, '#1a0b33'); R(0, FLOOR, W, 1, '#f2c14e'); for (let x = 0; x < W; x++) { const p = Math.round(pile[x]); if (p > 0) { R(x, FLOOR - p, 1, p, x % 3 ? '#f4e6c4' : '#d8c79a'); R(x, FLOOR - p, 1, 1, '#fff'); } }
+    if (frozen) { g.fillStyle = '#66e6ff'; g.fillRect(2, 2, 3, 3); }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame((n) => { last = n; frame(n); });
+  return { el: cv, level: (pk) => { const f = meterFrac(pk); lv = f > lv ? f : lv * 0.85 + f * 0.15; } };
+}
 function samplerSound() {
   const t = tIdx(), T = trk(), mode = Math.round(T.P[P.S_MODE] * 4), grain = mode === 4, set = (k, v) => edit(`p ${t} ${k} ${v}`), tog = (label, k) => btn(label, () => set(k, trk().P[k] > .5 ? 0 : 1), T.P[k] > .5 ? 'on' : '', 'flex:1');
-  const nameB = h('b', null, ''), row2 = h('div', { class: 'row gap' });
+  const nameB = h('b', null, ''), row2 = h('div', { class: 'row gap' }), bag = grain ? riceBag(t) : null;
   const el = h('div', { class: 'abs col', style: 'inset:0;gap:.6rem' }, h('div', { class: 'row gap' }, h('button', { class: 'btn two', style: 'width:17rem', tap: () => { C('sel view 3'); sync(); toast('PICK A FILE ON THE TOP SCREEN'); } }, lab('SAMPLE · TAP TO LOAD'), nameB), D.SMODES.map((m, i) => btn(m, () => set(P.S_MODE, i / 4), mode === i ? (i === 4 ? 'hot' : 'on') : '', 'flex:1;padding:0'))),
-    row2, kgrid(6, (grain ? D.KNOBS.grain : D.KNOBS.sampler).map(k => pknob(t, k)), 'flex:1;align-content:space-evenly'),
-    lab(grain ? 'GRAIN: THE SAMPLE IS SPRAYED AS TINY PIECES AROUND POSITION. PLAY NOTES IN A BLOCK TO PITCH THE CLOUD.' : ['ONE-SHOT: A NOTE PLAYS THE SAMPLE ONCE, PITCHED BY THE NOTE', 'LOOP: HELD NOTES LOOP BETWEEN START AND END', 'SLICE: 16 SLICES, ONE PER NOTE FROM C4 UP', 'CLIP: A LONG RECORDING THAT FOLLOWS THE SONG'][mode], 'hi'), keysRow(t));
+    row2, grain ? h('div', { class: 'row', style: 'flex:1;min-height:0;gap:.8rem;align-items:stretch' }, bag.el, kgrid(4, D.KNOBS.grain.map(k => pknob(t, k, true)), 'flex:1;align-content:space-evenly')) : kgrid(6, D.KNOBS.sampler.map(k => pknob(t, k)), 'flex:1;align-content:space-evenly'),
+    lab(grain ? 'GRAIN: THE SAMPLE POURS OUT AS GRAINS OF RICE. POSITION MOVES THE HOLE IN THE BAG. PLAY NOTES TO PITCH THEM.' : ['ONE-SHOT: A NOTE PLAYS THE SAMPLE ONCE, PITCHED BY THE NOTE', 'LOOP: HELD NOTES LOOP BETWEEN START AND END', 'SLICE: 16 SLICES, ONE PER NOTE FROM C4 UP', 'CLIP: A LONG RECORDING THAT FOLLOWS THE SONG'][mode], 'hi'), keysRow(t));
   function update() { const T2 = trk(), sm = S.st.smp.find(s => s.id === T2.smp); nameB.textContent = sm ? sm.name.slice(0, 18) : 'NONE YET'; row2.innerHTML = '';
     if (grain) row2.append(tog('FREEZE', P.G_FREEZE), tog('REVERSE', P.S_REV), btn('CHAOS', () => edit([P.G_POS, P.G_SIZE, P.G_DENS, P.G_SPRAY, P.G_SPREAD, P.G_SHATTER].map(k => `p ${t} ${k} ${Math.random().toFixed(3)}`)), '', 'flex:1'), btn('CALM', () => edit(`p ${t} ${P.G_SIZE} 0.5`, `p ${t} ${P.G_DENS} 0.5`, `p ${t} ${P.G_SPRAY} 0.1`, `p ${t} ${P.G_SPREAD} 0.3`, `p ${t} ${P.G_SHATTER} 0`), '', 'flex:1'), btn('SEE THE WAVE', () => { C('sel view 2'); sync(); }, '', 'flex:1'));
     else row2.append(tog('STRETCH TO TEMPO', P.S_STRETCH), tog('REVERSE', P.S_REV), btn('SEE THE WAVE', () => { C('sel view 2'); sync(); }, '', 'flex:1'), btn('TURN INTO GRAINS', () => set(P.S_MODE, 1), 'hot', 'flex:1'));
     upd(el); }
-  return { el, update };
+  return { el, update, fast: (m) => { if (bag) bag.level(m.trk[t] || 0); } };
 }
 function midiSound() {
   const t = tIdx(), chL = h('div', { class: 'mich', style: 'font-size:2.6rem;color:#fff;width:8rem;text-align:center' }), dev = lab('', 'hi');
@@ -113,7 +154,7 @@ function fxTab() { const t = tIdx(); if (!trk()) return { el: h('div'), update()
 // ---------------------------------------------------------------- MIX
 function mixTab() {
   const st = S.st, n = st.tracks.length, per = 6; V.mixPage = clamp(V.mixPage, 0, Math.max(0, Math.ceil(n / per) - 1)); const t0 = V.mixPage * per, meters = [], strips = [], row = h('div', { class: 'row grow', style: 'gap:.5rem;align-items:stretch' });
-  for (let t = t0; t < Math.min(n, t0 + per); t++) { const cap = h('div', { class: 'abs', style: 'left:.3rem;right:.3rem;height:1.6rem;background:linear-gradient(180deg,#fff,#d9d5ff 45%,#a39df0);border:.1rem solid #0d0a2e;box-shadow:0 0 .8rem #8f7bff;pointer-events:none' }), m = leds('v', 'height:100%'), tr = h('div', { style: 'position:relative;flex:1;height:100%;background:rgba(7,5,28,.7);border:.1rem solid rgba(190,180,255,.4)' }, h('div', { class: 'abs', style: 'left:50%;top:.6rem;bottom:.6rem;width:.2rem;background:#3a2f7a' }), cap);
+  for (let t = t0; t < Math.min(n, t0 + per); t++) { const cap = h('div', { class: 'abs', style: 'left:.3rem;right:.3rem;height:1.6rem;background:linear-gradient(180deg,#fff3c2,#f2c14e 55%,#c98a2e);border:.1rem solid #1a0b33;box-shadow:0 .2rem 0 #0a0420;pointer-events:none' }), m = leds('v', 'height:100%'), tr = h('div', { style: 'position:relative;flex:1;height:100%;background:rgba(7,5,28,.7);border:.1rem solid rgba(190,180,255,.4)' }, h('div', { class: 'abs', style: 'left:50%;top:.6rem;bottom:.6rem;width:.2rem;background:#5a3fa8' }), cap);
     const setV = (e) => { const r = tr.getBoundingClientRect(), v = clamp(1 - (e.clientY - r.top - rem() * 0.8) / (r.height - rem() * 1.6)); S.st.tracks[t].P[0] = v; C(`p ${t} 0 ${v.toFixed(4)}`); place(); }, place = () => { cap.style.bottom = `calc(${(S.st.tracks[t].P[0] * 100).toFixed(1)}% - ${(S.st.tracks[t].P[0] * 1.6).toFixed(2)}rem)`; };
     let d = false; tr.addEventListener('pointerdown', (e) => { try { tr.setPointerCapture(e.pointerId); } catch (x) {} d = true; mark(); SMB.focus(`p ${t} 0`); setV(e); }); tr.addEventListener('pointermove', (e) => { if (d) setV(e); }); const up = () => { if (d) { d = false; C('bump'); } }; tr.addEventListener('pointerup', up); tr.addEventListener('pointercancel', up);
     const nmT = h('span', { style: 'display:block;width:100%;text-align:center' }), nm = h('button', { class: 'btn sm', style: 'width:100%;padding:0 .4rem', tap: () => setTrack(t) }, nmT), mu = btn('M', () => { C(`trk mute ${t} ${S.st.tracks[t].mute ? 0 : 1}`); sync(); }, 'sm', 'flex:1;padding:0'), so = btn('S', () => { C(`trk solo ${t} ${S.st.tracks[t].solo ? 0 : 1}`); sync(); }, 'sm', 'flex:1;padding:0');
@@ -134,7 +175,7 @@ function inputTab() {
 
 // ---------------------------------------------------------------- MASTER
 function masterTab() {
-  const chips = h('div', { style: 'display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem' }), big = h('div', { class: 'mich', style: 'font-size:3rem;line-height:3.2rem;color:#fff;width:10.5rem;text-align:right;text-shadow:0 0 1rem #8f7bff' }), integ = h('b', { style: 'color:#fff;font-size:.9rem' }), tgt = lab('', 'hi'), cv = h('canvas', { style: 'width:100%;height:2.6rem;display:block' }), gr = leds('', 'flex:1'), refB = btn('A/B REFERENCE', () => { if (S.st.refId < 0) return toast('LOAD A REFERENCE SONG IN FILES ON THE TOP SCREEN'); C(`ref ${S.st.refId} ${S.st.refOn ? 0 : 1}`); sync(); });
+  const chips = h('div', { style: 'display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem' }), big = h('div', { class: 'mich', style: 'font-size:2.5rem;line-height:3.2rem;color:#fff;width:10.5rem;text-align:right;text-shadow:.12rem .12rem 0 #0a0420' }), integ = h('b', { style: 'color:#fff;font-size:.9rem' }), tgt = lab('', 'hi'), cv = h('canvas', { style: 'width:100%;height:2.6rem;display:block' }), gr = leds('', 'flex:1'), refB = btn('A/B REFERENCE', () => { if (S.st.refId < 0) return toast('LOAD A REFERENCE SONG IN FILES ON THE TOP SCREEN'); C(`ref ${S.st.refId} ${S.st.refOn ? 0 : 1}`); sync(); });
   const mknob = ([i, label, steps]) => knob({ label, steps, focus: `m ${i}`, get: () => S.st.M[i], set: (v) => { S.st.M[i] = v; C(`m ${i} ${v.toFixed(4)}`); } }), names = () => S.st.tracks.map(T => T.type === 3 ? '' : T.name).join('|');
   D.MASTERS.forEach(p => chips.append(btn(p.name, () => { edit(Object.entries(p.m).map(([k, v]) => `m ${k} ${v}`)); V.mp = p.name; V.target = p.target; C('lufs'); render(); }, '', 'padding:0')));
   const el = h('div', { class: 'abs col', style: 'inset:0;gap:.6rem' }, chips,
@@ -144,8 +185,8 @@ function masterTab() {
   return { el, update() { upd(el); chips.querySelectorAll('.btn').forEach(c => c.classList.toggle('on', c.textContent === V.mp)); refB.classList.toggle('on', !!S.st.refOn); tgt.textContent = 'TARGET ' + V.target + ' LUFS'; },
     fast(m) { big.textContent = m.short <= -69 ? '--' : m.short.toFixed(1); integ.textContent = m.integ <= -69 ? '--' : m.integ.toFixed(1); gr.set(clamp((m.lim + m.glue * 0.5) / 12));
       const d = Math.min(2, devicePixelRatio || 1), w = cv.clientWidth, hh = cv.clientHeight; if (cv.width !== Math.round(w * d)) { cv.width = Math.round(w * d); cv.height = Math.round(hh * d); } const g = cv.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, w, hh);
-      const X = (l) => clamp((l + 30) / 27) * w; g.fillStyle = '#1a1548'; g.fillRect(0, hh * .25, w, hh * .5); const grad = g.createLinearGradient(0, 0, w, 0); grad.addColorStop(0, '#6d5cf2'); grad.addColorStop(.7, '#e9e6ff'); grad.addColorStop(1, '#ff7ad9'); g.fillStyle = grad; if (m.short > -69) g.fillRect(0, hh * .25, X(m.short), hh * .5);
-      if (m.mom > -69) { g.fillStyle = '#fff'; g.fillRect(X(m.mom) - 1, hh * .1, 2, hh * .8); } g.fillStyle = '#ff7ad9'; g.fillRect(X(V.target) - 1.5, 0, 3, hh); for (const l of [-24, -18, -14, -10, -6]) { g.fillStyle = 'rgba(255,255,255,.4)'; g.fillRect(X(l), hh * .85, 1, hh * .15); } } };
+      const X = (l) => clamp((l + 30) / 27) * w; g.fillStyle = '#1a1548'; g.fillRect(0, hh * .25, w, hh * .5); const grad = g.createLinearGradient(0, 0, w, 0); grad.addColorStop(0, '#c98a2e'); grad.addColorStop(.7, '#fff3c2'); grad.addColorStop(1, '#ff5fb4'); g.fillStyle = grad; if (m.short > -69) g.fillRect(0, hh * .25, X(m.short), hh * .5);
+      if (m.mom > -69) { g.fillStyle = '#fff'; g.fillRect(X(m.mom) - 1, hh * .1, 2, hh * .8); } g.fillStyle = '#ff5fb4'; g.fillRect(X(V.target) - 1.5, 0, 3, hh); for (const l of [-24, -18, -14, -10, -6]) { g.fillStyle = 'rgba(255,255,255,.4)'; g.fillRect(X(l), hh * .85, 1, hh * .15); } } };
 }
 
 // ---------------------------------------------------------------- PLAY: pads for the selected track, and effects you hold
@@ -155,7 +196,7 @@ function playTab() {
   function fill() { pads.innerHTML = ''; if (!T) return; const drum = T.type === 0, ns = drum ? Array.from({ length: 16 }, (_, i) => i) : notes(); [12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3].forEach((k) => { const n = ns[k]; if (n == null) return pads.append(h('div')); const root = !drum && ((n - S.st.key) % 12 + 12) % 12 === 0, sm = drum && T.pads[n].type === 9 ? S.st.smp.find(s => s.id === T.pads[n].smp) : null;
     pads.append(hold(h('button', { class: 'btn ' + (root ? 'on' : ''), style: `height:auto;min-height:0;font-size:1rem;flex-direction:column;gap:.2rem;white-space:normal;${drum && T.pads[n].type === 10 ? 'opacity:.4' : ''}` }, drum ? [h('span', { class: 'mono', style: 'font-size:.65rem' }, pad2(n + 1)), sm ? sm.name.slice(0, 12) : D.DRUMS[T.pads[n].type]] : noteName(n)), () => C(`non ${t} ${n} 0.9`), () => C(`noff ${t} ${n}`))); }); }
   const hb = (label, on, off, cls = '') => hold(h('button', { class: 'btn ' + cls, style: 'flex:1;height:auto;font-size:1rem' }, label), on, off);
-  const dot = h('div', { class: 'abs', style: 'top:0;bottom:0;width:.4rem;background:#fff;box-shadow:0 0 1rem #b04bff;left:50%' }), strip = h('div', { class: 'lcd', style: 'height:6rem;position:relative;overflow:hidden' }, h('span', { class: 'lab abs', style: 'left:.8rem;top:.5rem' }, '◀ MUFFLE'), h('span', { class: 'lab abs', style: 'right:.8rem;top:.5rem' }, 'THIN ▶'), h('span', { class: 'lab abs', style: 'left:0;right:0;bottom:.5rem;text-align:center' }, 'FILTER: SLIDE AND HOLD'), dot);
+  const dot = h('div', { class: 'abs', style: 'top:0;bottom:0;width:.4rem;background:#fff;box-shadow:0 .2rem 0 #0a0420;left:50%' }), strip = h('div', { class: 'lcd', style: 'height:6rem;position:relative;overflow:hidden' }, h('span', { class: 'lab abs', style: 'left:.8rem;top:.5rem' }, '◀ MUFFLE'), h('span', { class: 'lab abs', style: 'right:.8rem;top:.5rem' }, 'THIN ▶'), h('span', { class: 'lab abs', style: 'left:0;right:0;bottom:.5rem;text-align:center' }, 'FILTER: SLIDE AND HOLD'), dot);
   let sd = false; const sv = (e) => { const r = strip.getBoundingClientRect(), x = clamp((e.clientX - r.left) / r.width); dot.style.left = (x * 100) + '%'; C('perf 0 ' + x.toFixed(3)); };
   strip.addEventListener('pointerdown', (e) => { try { strip.setPointerCapture(e.pointerId); } catch (x) {} sd = true; sv(e); }); strip.addEventListener('pointermove', (e) => { if (sd) sv(e); }); const su = () => { if (sd) { sd = false; dot.style.left = '50%'; C('perf 0 0.5'); } }; strip.addEventListener('pointerup', su); strip.addEventListener('pointercancel', su);
   el.append(h('div', { class: 'col', style: 'flex:1.6;gap:.5rem;min-width:0' }, h('div', { class: 'row gap', style: 'height:3.2rem' }, lab(S.st.rec ? 'RECORD IS ON: WHAT YOU PLAY IS WRITTEN INTO THE BLOCK' : 'PRESS ● AND PLAY TO WRITE NOTES INTO THE BLOCK', 'hi'), h('div', { class: 'grow' }), T && T.type !== 0 ? [btn('−', () => { V.oct = Math.max(-2, V.oct - 1); fill(); upd2(); }, 'sq'), octL, btn('+', () => { V.oct = Math.min(3, V.oct + 1); fill(); upd2(); }, 'sq')] : null), pads),

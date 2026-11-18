@@ -5,7 +5,7 @@ from playwright.async_api import async_playwright
 JS = r"""() => {
   const out = [], vis = (e) => { const r = e.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return false; for (let p = e; p; p = p.parentElement) { const s = getComputedStyle(p); if (s.display === 'none' || s.visibility === 'hidden') return false; } return true; };
   const leaves = [];
-  const walk = (n) => { for (const c of n.childNodes) { if (c.nodeType === 3 && c.textContent.trim()) { const e = c.parentElement; if (!vis(e)) continue; const rg = document.createRange(); rg.selectNodeContents(c); const r = rg.getBoundingClientRect(); if (r.width > 1) leaves.push({ t: c.textContent.trim().slice(0, 40), r, e }); } else if (c.nodeType === 1 && c.tagName !== 'SCRIPT' && c.tagName !== 'STYLE') walk(c); } };
+  const walk = (n) => { for (const c of n.childNodes) { if (c.nodeType === 3 && c.textContent.trim()) { const e = c.parentElement; if (!vis(e)) continue; const rg = document.createRange(); rg.selectNodeContents(c); const r = rg.getBoundingClientRect(); if (r.width > 1) leaves.push({ t: c.textContent.trim().slice(0, 40), r, e }); } else if (c.nodeType === 1 && c.tagName !== 'SCRIPT' && c.tagName !== 'STYLE' && c.getAttribute('aria-hidden') !== 'true') walk(c); } };
   walk(document.querySelector('.pop') || document.body);
   const W = innerWidth, H = innerHeight;
   for (const l of leaves) {

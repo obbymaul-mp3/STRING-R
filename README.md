@@ -27,7 +27,7 @@ Heartstring makes its own sound, separate from the song's mixer: it does not pas
 ## Buttons
 | Control | Does |
 |---|---|
-| Left stick | moves the cursor on the top screen (a small chrome sword) |
+| Left stick | moves the cursor on the top screen (a small pixel sword with a heart in its hilt) |
 | A | presses whatever the cursor points at; hold it and move to drag |
 | START | play / pause |
 | B | stop (twice: back to the start) |
