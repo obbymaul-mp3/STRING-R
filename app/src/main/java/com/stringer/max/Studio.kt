@@ -165,6 +165,18 @@ object Studio {
     }
 
     // ---------------------------------------------------------------- your own drum kits: the pads of a drum track, saved by name
+    // ---------------------------------------------------------------- Heartstring: one document shared by the two screens, kept between launches
+    @Volatile private var hsDoc: String? = null
+    @Volatile var hsVer = 0
+    private fun hsFile() = File(dir("heartstring"), "state.json")
+    fun hsGet(): String { if (hsDoc == null) hsDoc = try { hsFile().readText() } catch (e: Exception) { "" }; return hsDoc ?: "" }
+    @Synchronized fun hsPut(json: String): Int { hsDoc = json; hsVer++; val v = hsVer; Thread { try { hsFile().writeText(json) } catch (e: Exception) {} }.start(); return v }
+    /** The pads of a saved kit that hold the user's own samples: [{"i":0,"path":"..."}] */
+    fun kitPads(name: String): String {
+        val sb = StringBuilder("["); var first = true
+        try { for (line in File(kitsDir(), safe(name) + ".kit").readLines()) { val a = line.split(' ', limit = 8); if (a.size >= 8 && a[0] != "x" && a[7].length > 2) { if (!first) sb.append(','); first = false; sb.append("{\"i\":").append(a[0].toIntOrNull() ?: 0).append(",\"path\":").append(q(a[7].trim().removeSurrounding("\"").replace("\\\\", "\\"))).append('}') } } } catch (e: Exception) {}
+        return sb.append("]").toString()
+    }
     fun kits(): String {
         val sb = StringBuilder("[")
         val list = kitsDir().listFiles { f -> f.name.endsWith(".kit") }?.sortedByDescending { it.lastModified() } ?: emptyList()
@@ -361,7 +373,7 @@ object Studio {
         val sb = StringBuilder("{\"m\":\"").append(Native.meters()).append("\",\"acts\":[")
         synchronized(acts) { acts.forEachIndexed { i, a -> if (i > 0) sb.append(','); sb.append('[').append(a.first).append(',').append(q(a.second)).append(']') } }
         sb.append("],\"notice\":").append(q(if (System.currentTimeMillis() < noticeUntil) notice else "")).append(",\"busy\":").append(q(busy)).append(",\"rec\":").append(recording)
-            .append(",\"input\":").append(q(inputName)).append(",\"usb\":").append(usbInput).append(",\"mic\":").append(micOk).append(",\"midi\":").append(q(midiName)).append(",\"proj\":").append(q(project)).append(",\"lx\":").append(lx).append(",\"ly\":").append(ly).append('}')
+            .append(",\"input\":").append(q(inputName)).append(",\"usb\":").append(usbInput).append(",\"mic\":").append(micOk).append(",\"midi\":").append(q(midiName)).append(",\"proj\":").append(q(project)).append(",\"hs\":").append(hsVer).append(",\"lx\":").append(lx).append(",\"ly\":").append(ly).append('}')
         return sb.toString()
     }
 }

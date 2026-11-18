@@ -45,6 +45,9 @@ class Bridge {
     @JavascriptInterface fun saveKit(name: String) = Studio.saveKit(name)
     @JavascriptInterface fun loadKit(name: String) = Studio.loadKit(name)
     @JavascriptInterface fun removeKit(name: String) = Studio.deleteKit(name)
+    @JavascriptInterface fun hsGet(): String = Studio.hsGet()
+    @JavascriptInterface fun hsPut(json: String): Int = Studio.hsPut(json)
+    @JavascriptInterface fun kitPads(name: String): String = Studio.kitPads(name)
     @JavascriptInterface fun rec() = Studio.rec()
     @JavascriptInterface fun focus(what: String) { Studio.focus = what }
     @JavascriptInterface fun info(): String = Native.info()
@@ -70,6 +73,11 @@ open class ScreenActivity : Activity() {
         web.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                 val u = request.url; if (u.host != "sm.local") return null; val path = u.path ?: return null
+                if (path.endsWith("/smp")) {   // one of the user's own sound files, for Heartstring to decode
+                    return try { val f = java.io.File(u.getQueryParameter("p") ?: ""); val ext = f.extension.lowercase()
+                        if (f.isFile && ext in setOf("wav", "aif", "aiff", "mp3", "flac", "ogg", "m4a", "aac")) WebResourceResponse("application/octet-stream", null, java.io.FileInputStream(f)) else throw java.io.FileNotFoundException()
+                    } catch (e: Exception) { WebResourceResponse("text/plain", "utf-8", 404, "Not found", emptyMap(), java.io.ByteArrayInputStream(ByteArray(0))) }
+                }
                 return try {
                     val name = path.removePrefix("/"); val mime = when (name.substringAfterLast('.')) { "html" -> "text/html"; "js" -> "application/javascript"; "css" -> "text/css"; "ttf" -> "font/ttf"; "jpg" -> "image/jpeg"; "png" -> "image/png"; "webp" -> "image/webp"; "mp4" -> "video/mp4"; else -> "application/octet-stream" }
                     WebResourceResponse(mime, if (mime.startsWith("text") || mime.endsWith("javascript")) "utf-8" else null, assets.open(name))

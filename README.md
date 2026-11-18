@@ -19,6 +19,11 @@ Like Music 2000: each track is a lane, and you place **blocks** on a timeline th
 
 Not in this build yet: MP3 export, a video export for TikTok, tempo and key detection of samples, snapping a recorded vocal to the grid, a typed-lyrics singing voice (the VOX engine sings vowels), named sections on the timeline, and moving 3D backdrops (they are stills that pulse with the music).
 
+## Heartstring
+The pink **♥ HEART** button on the top screen opens Heartstring, a chain-reaction groove machine. A heart beats once a beat; each drum that fires pulls its strings, and each string has a chance of firing the drum at its other end a few steps later. The top screen shows the heart cut open: the strings are its veins and what moves along them is drawn as blood, running from the core through the veins and down each drum's line into its sound. The bottom screen edits the selected drum (its sound: built-in, one of your samples, or a pad from one of your kits; level; roll chance), its strings (chance, when it fires, which beats it is allowed on) and the machine (tempo, wander, swing, damage, breakdowns). Five styles: Trance, Hard Techno, Hyperpop, House, Garage. LOCK repeats the last four bars exactly; SEND 4 BARS TO SONG writes them into the song as three new tracks of blocks (drums, bass, lead).
+
+Heartstring makes its own sound, separate from the song's mixer: it does not pass through MASTER and is not in an export until you send its bars to the song.
+
 ## Buttons
 | Control | Does |
 |---|---|

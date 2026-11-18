@@ -5,7 +5,7 @@ const ui = path.join(__dirname, '../app/src/main/assets/ui'), demo = path.join(_
 const host = spawn(process.env.SMHOST || '/tmp/smhost', ['serve', demo]); let buf = '', waiters = [];
 host.stdout.on('data', (d) => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); const w = waiters.shift(); if (w) w(line.replace(/\x01/g, '\n')); } });
 const ask = (line) => new Promise((res) => { waiters.push(res); host.stdin.write(line.replace(/\n/g, ' ') + '\n'); });
-const pad = { acts: [], seq: 0, lx: 0, ly: 0 };
+const pad = { acts: [], seq: 0, lx: 0, ly: 0 }; let hsDoc = '', hsVer = 0;
 let last = Date.now(), focus = '', rec = false, selTrack = 0; const kits = {};
 const fake = { '': { path: '', up: '', dirs: [{ n: 'THOR STORAGE', p: '/storage/emulated/0' }, { n: 'MY TAKES AND BOUNCES', p: '/takes' }], files: [] },
   '/storage/emulated/0': { path: '/storage/emulated/0', up: '', dirs: [{ n: 'Music', p: '/storage/emulated/0/Music' }, { n: 'Download', p: '/d' }], files: [] },
@@ -19,7 +19,8 @@ async function call(fn, a) {
   if (fn === 'state') { const s = await ask('state'); const m = /^\{"v":(\d+)/.exec(s); return m && Number(m[1]) === a[0] ? '' : s; }
   if (fn === 'peaks') return ask(`peaks ${a[0]} ${a[1]}`);
   if (fn === 'pad') { const o = JSON.parse(a[0]); if (o.act) pad.acts.push([++pad.seq, o.act]); if ('lx' in o) { pad.lx = o.lx; pad.ly = o.ly; } return ''; }   // tests press buttons and move the stick through this
-  if (fn === 'poll') { const now = Date.now(), n = Math.min(48000, Math.round((now - last) * 48)); last = now; if (n > 0) await ask('run ' + n); const m = await ask('meters'); return JSON.stringify({ m, acts: pad.acts, lx: pad.lx, ly: pad.ly, notice: '', busy: '', rec, input: 'FM-1', usb: true, mic: true, midi: 'FM-1', proj: 'FIRST LIGHT' }); }
+  if (fn === 'hsGet') return hsDoc; if (fn === 'hsPut') { hsDoc = a[0]; return String(++hsVer); } if (fn === 'kitPads') return '[]';
+  if (fn === 'poll') { const now = Date.now(), n = Math.min(48000, Math.round((now - last) * 48)); last = now; if (n > 0) await ask('run ' + n); const m = await ask('meters'); return JSON.stringify({ m, acts: pad.acts, lx: pad.lx, ly: pad.ly, hs: hsVer, notice: '', busy: '', rec, input: 'FM-1', usb: true, mic: true, midi: 'FM-1', proj: 'FIRST LIGHT' }); }
   if (fn === 'browse') return JSON.stringify(fake[a[0]] || { path: a[0], up: '', dirs: [], files: [] });
   if (fn === 'projects') return JSON.stringify([{ n: 'FIRST LIGHT', t: 1 }, { n: 'WAREHOUSE 4AM', t: 2 }, { n: 'GLASS ANGEL', t: 3 }]);
   if (fn === 'rec') { rec = !rec; return ''; }

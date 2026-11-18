@@ -1,7 +1,7 @@
 // STRING-R: the top screen. The song as blocks on a timeline, the notes inside a block, the sample, the files.
 'use strict';
 document.documentElement.className = 'top';
-const VIEWS = ['SONG', 'NOTES', 'SAMPLE', 'FILES'], BGS = ['serpent', 'star', 'drop', 'portal'];
+const VIEWS = ['SONG', 'NOTES', 'SAMPLE', 'FILES'], HEARTTAB = 'HEART', BGS = ['serpent', 'star', 'drop', 'portal'];
 const U = { zb: 32, bar0: 0, row0: 0, selT: -1, selBar: -1, stamp: false, bar: 0, zoom: 2, len: 1, vel: 0.8, lock: true, chord: false, autoP: -1, erase: false, krow0: null, select: false, selN: new Set(), drow: 0, clipBar: null, path: '', pick: '', listing: null, peaksFor: -1, peaks: null };
 const TINT = [['#ffffff', '#d9d5ff', '#a39df0'], ['#e2ccff', '#a877ff', '#6d3cf2'], ['#ffe1f6', '#ff9ae3', '#e0489f'], ['#d6ebff', '#86b4ff', '#4f7bf2'], ['#f4f5fa', '#b9bfd2', '#7f869e'], ['#e9ffd6', '#b4f07a', '#5fae2a'], ['#fff3d6', '#ffcf7a', '#e08a2a'], ['#d6fff6', '#7af0d8', '#2aae96']];
 let hd = {}, rail, body, tabs = [], toolsEl, cur = null, curKey = '', railMeters = [], splash, main;
@@ -23,7 +23,8 @@ function build() {
   const tb = (g, fn, aria, col) => h('button', { class: 'btn', style: `width:4.2rem;height:4.2rem;font-size:1.4rem;padding:0;color:${col || '#e4dfff'};clip-path:polygon(.6rem 0,100% 0,100% calc(100% - .6rem),calc(100% - .6rem) 100%,0 100%,0 .6rem)`, 'aria-label': aria, tap: fn }, g);
   hd.play = tb('▶', () => transport('PLAY'), 'Play', '#fff'); hd.rec = tb('●', () => transport('REC'), 'Record', '#ff7ad9'); hd.lufs = lab('--'); hd.mL = leds('', 'width:100%'); hd.mR = leds('', 'width:100%');
   rail = A('left:.9rem;top:10rem;width:13.4rem;display:flex;flex-direction:column;gap:.5rem'); body = A('left:17.6rem;top:7.3rem;width:77.4rem;height:41.5rem');
-  tabs = VIEWS.map((v, i) => btn(v, () => setSel('view', i), 'off', 'width:7.4rem;height:3.2rem;font-size:.95rem;padding:0;clip-path:polygon(.7rem 0,100% 0,100% calc(100% - .7rem),calc(100% - .7rem) 100%,0 100%,0 .7rem)'));
+  tabs = VIEWS.map((v, i) => btn(v, () => setSel('view', i), 'off', 'width:6.3rem;height:3.2rem;font-size:.85rem;padding:0;clip-path:polygon(.7rem 0,100% 0,100% calc(100% - .7rem),calc(100% - .7rem) 100%,0 100%,0 .7rem)'));
+  const heartTab = btn('♥ ' + HEARTTAB, () => { C('stop'); C('sel hs 1'); sync(); }, 'hot', 'width:7.2rem;height:3.2rem;font-size:.85rem;padding:0;flex-shrink:0');
   toolsEl = h('div', { class: 'row gap grow', style: 'justify-content:flex-end;min-width:0' });
   hd.undo = btn('↶', () => { C('undo'); sync(); }, 'sq', 'font-size:1.2rem'); hd.redo = btn('↷', () => { C('redo'); sync(); }, 'sq', 'font-size:1.2rem');
   main = A('inset:0',
@@ -32,11 +33,11 @@ function build() {
     h('div', { class: 'abs lcd', style: 'left:36.1rem;top:.6rem;width:23.8rem;height:3.5rem;display:grid;grid-template-columns:repeat(4,minmax(0,1fr))' }, c1[0], c2[0], c3[0], c4[0]),
     A('left:67rem;top:.9rem;width:26.2rem;height:4.8rem;display:flex;align-items:center;gap:.6rem', tb('◀◀', () => { C('stop'); C('seek 0'); sync(); }, 'Back to start'), hd.play, tb('■', () => { C('stop'); sync(); }, 'Stop'), hd.rec,
       h('div', { class: 'lcd col grow', style: 'height:4.2rem;padding:.5rem .6rem;justify-content:space-between' }, h('div', { class: 'row', style: 'justify-content:space-between' }, lab('LUFS'), hd.lufs), hd.mL, hd.mR)),
-    A('left:60.2rem;top:1.3rem;width:6.6rem;height:3.2rem;display:flex;gap:.2rem', hd.undo, hd.redo), rail, body, A('left:21.5rem;top:50.1rem;width:73.4rem;height:3.4rem;display:flex;align-items:center;gap:.5rem', tabs, toolsEl));
+    A('left:60.2rem;top:1.3rem;width:6.6rem;height:3.2rem;display:flex;gap:.2rem', hd.undo, hd.redo), rail, body, A('left:21.5rem;top:50.1rem;width:73.4rem;height:3.4rem;display:flex;align-items:center;gap:.4rem', tabs, heartTab, toolsEl));
   splash = h('div', { class: 'abs', style: 'inset:0;display:none', onpointerdown: () => setSel('home', 0) },
     h('div', { class: 'abs col', style: 'left:0;right:0;top:36rem;align-items:center;gap:1.4rem' }, h('div', { class: 'mich chrome', style: 'font-size:7.5rem;letter-spacing:1.7rem;line-height:9rem;padding-left:1.7rem;filter:drop-shadow(0 0 1.5rem rgba(120,130,255,.9))' }, 'STRING-R'), h('div', { class: 'mono', style: 'font-size:1.1rem;letter-spacing:.8rem;color:#fff' }, 'STRINGER MAX · POCKET WORKSTATION'),
       h('div', { class: 'mono', style: 'margin-top:1.2rem;font-size:.75rem;letter-spacing:.4rem;color:#dcd8ff' }, 'CHOOSE A SONG ON THE LOWER SCREEN')));
-  app.append(main, splash);
+  app.append(main, splash); hsTopBuild(app);
 }
 function tempoPop() {
   let taps = []; const num = h('div', { class: 'mich', style: 'font-size:3.2rem;width:12rem;text-align:center;color:#fff;text-shadow:0 0 1rem #8f7bff' }, S.st.bpm); const set = (v) => { C('bpm ' + clamp(Math.round(v), 40, 240)); sync(); num.textContent = S.st.bpm; };
@@ -95,16 +96,17 @@ function chrome() {
 }
 let wasHome = null;
 function render() {
-  if (!S.st) return; const home = sel('home', 1) === 1;
-  if (home !== wasHome) { wasHome = home; splash.style.display = home ? 'block' : 'none'; main.style.display = home ? 'none' : 'block'; setPlates(1920, 1080, home ? HOMEPLATES : MAINPLATES); document.getElementById('dim').style.cssText = home ? 'left:0;right:0;top:32rem;bottom:0;background:linear-gradient(180deg,rgba(0,0,8,0),rgba(0,0,8,.92) 55%)' : 'left:15.8rem;top:5.2rem;right:0;bottom:0'; bgName = ''; if (!home) splashBg(false); }
+  if (!S.st) return; const home = sel('home', 1) === 1, heart = !home && hsOn(), mode = home ? 'home' : heart ? 'heart' : 'main';
+  if (mode !== wasHome) { wasHome = mode; splash.style.display = home ? 'block' : 'none'; main.style.display = mode === 'main' ? 'block' : 'none'; hsTopShow(heart); setPlates(1920, 1080, home ? HOMEPLATES : heart ? HSPLATES() : MAINPLATES); document.getElementById('dim').style.cssText = home ? 'left:0;right:0;top:32rem;bottom:0;background:linear-gradient(180deg,rgba(0,0,8,0),rgba(0,0,8,.92) 55%)' : 'left:15.8rem;top:5.2rem;right:0;bottom:0'; bgName = ''; if (!home) splashBg(false); if (heart) { document.getElementById('dim').style.cssText = 'display:none'; document.getElementById('bg').style.backgroundImage = 'none'; bgName = 'none'; } }
   if (home) { splashBg(true); return; }
+  if (heart) { hsTopApply(); return; }
   if (sel('view', 0) === 0 && sel('autoloop', 0)) { C('loop 0'); C('mode 0'); C('sel autoloop 0'); sync(); return; }   // the loop that editing a block switched on ends when you come back to the song
   chrome(); const v = sel('view', 0), T = trk(), key = v === 0 || v === 3 ? 'v' + v : v + ':' + tIdx() + ':' + (T ? T.type : -1) + ':' + (v === 1 ? (edBlock() ? 1 : 0) : 0);
   if (key !== curKey) { curKey = key; body.innerHTML = ''; cur = [songView, notesView, sampleView, filesView][v](); body.append(cur.el); }
   setBg(v === 1 && T && T.type === 0 ? 'urchin' : BGS[v], v === 0 ? 0.42 : 0.5); cur.update(); toolsEl.innerHTML = ''; if (cur.tools) toolsEl.append(...cur.tools());
 }
 function onMeters() {
-  const m = S.m, st = S.st; if (sel('home', 1) === 1) { pulseBg(0.35, false); return; }
+  const m = S.m, st = S.st; hsPoll(() => { if (hsOn()) hsTopApply(); }); if (sel('home', 1) === 1) { pulseBg(0.35, false); return; } if (hsOn()) { hsTopApply(); return; }
   const bar = Math.floor(m.tick / BAR) + 1, beat = Math.floor((m.tick % BAR) / 96) + 1, six = Math.floor((m.tick % 96) / STEP) + 1; hd.pos.textContent = bar + '.' + beat + '.' + six;
   hd.lufs.textContent = m.short <= -69 ? '--' : m.short.toFixed(1); hd.mL.set(meterFrac(m.pkL)); hd.mR.set(meterFrac(m.pkR));
   railMeters.forEach((r, i) => r && r.set(meterFrac(m.trk[i] || 0)));
@@ -112,6 +114,7 @@ function onMeters() {
   if (cur && cur.fast) cur.fast(m);
 }
 function onAct(name) {
+  if (hsOn()) { if (name === 'PLAY') { HS.doc.play = !HS.doc.play; hsPut(); hsTopApply(); } return; }
   if (['PLAY', 'REC', 'TRACK-', 'TRACK+', 'PAT-', 'PAT+'].includes(name)) return transport(name);
   if (name === 'VIEW') return setSel('view', (sel('view', 0) + 1) % VIEWS.length);
   if (cur && cur.act) cur.act(name);

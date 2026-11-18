@@ -4,7 +4,7 @@ const D = SMD, P = D.P, BAR = 384, STEP = 24;
 // On the Thor the app provides SM. On a computer (tools/dev.js) the same calls go to a small local server running the real engine.
 const SMB = window.SM || (() => {
   const call = (fn, a) => { const x = new XMLHttpRequest(); x.open('POST', '/sm', false); x.send(JSON.stringify([fn, ...a])); return x.responseText; };
-  const o = {}; for (const f of ['cmd', 'state', 'poll', 'peaks', 'browse', 'projects', 'info', 'preview', 'load', 'pick', 'storage', 'save', 'open', 'remove', 'fresh', 'export', 'rec', 'focus', 'kits', 'saveKit', 'loadKit', 'removeKit']) o[f] = (...a) => call(f, a);
+  const o = {}; for (const f of ['cmd', 'state', 'poll', 'peaks', 'browse', 'projects', 'info', 'preview', 'load', 'pick', 'storage', 'save', 'open', 'remove', 'fresh', 'export', 'rec', 'focus', 'kits', 'saveKit', 'loadKit', 'removeKit', 'hsPut', 'hsGet', 'kitPads']) o[f] = (...a) => call(f, a);
   return o;
 })();
 const S = { st: null, v: -1, m: null, poll: {}, lastAct: -1 };

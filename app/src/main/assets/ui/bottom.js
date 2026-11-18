@@ -25,17 +25,18 @@ function build() {
   home = A('inset:0;display:none'); app.append(main, home);
 }
 function render() {
-  if (!S.st) return; const isHome = sel('home', 1) === 1;
-  if (isHome !== wasHome) { wasHome = isHome; home.style.display = isHome ? 'block' : 'none'; main.style.display = isHome ? 'none' : 'block'; setPlates(1240, 1080, isHome ? HOMEPLATES : MAINPLATES); document.getElementById('dim').style.cssText = isHome ? 'inset:0' : 'left:0;right:0;top:5.8rem;bottom:6rem'; curKey = ''; if (isHome) homeView(); }
+  if (!S.st) return; const isHome = sel('home', 1) === 1, heart = !isHome && hsOn(), mode = isHome ? 'home' : heart ? 'heart' : 'main';
+  if (mode !== wasHome) { wasHome = mode; home.style.display = isHome ? 'block' : 'none'; main.style.display = mode === 'main' ? 'block' : 'none'; hsBottomShow(document.getElementById('app'), heart); setPlates(1240, 1080, isHome ? HOMEPLATES : heart ? HSBPLATES() : MAINPLATES); document.getElementById('dim').style.cssText = isHome ? 'inset:0' : 'left:0;right:0;top:5.8rem;bottom:6rem'; curKey = ''; if (isHome) homeView(); }
   if (isHome) { setBg('tri', 0.45); return; }
+  if (heart) { document.getElementById('dim').style.cssText = 'inset:0'; setBg('heart_b', 0.66); hsBottomRender(); return; }
   const st = S.st, T = trk(), tab = sel('tab', 0); fitTxt(hd.name, T ? T.name : 'NO TRACK'); hd.kind.textContent = T ? `TRACK ${pad2(tIdx() + 1)} · ${D.TYPES[T.type]}` : ''; hd.play.textContent = st.playing ? '❚❚' : '▶'; hd.play.classList.toggle('on', !!st.playing); hd.rec.classList.toggle('hot', !!st.rec);
   tabs.forEach((b, i) => { b.classList.toggle('off', i !== tab); b.classList.toggle('on', i === tab); });
   const key = [tab, tIdx(), T ? T.type : -1, T ? T.eng : 0, V.page, V.mpage, V.mixPage, st.tracks.length, T && T.type === 2 ? Math.round(T.P[P.S_MODE] * 4) : 0].join(':');
   if (key !== curKey) { curKey = key; body.innerHTML = ''; cur = [soundTab, fxTab, mixTab, inputTab, masterTab, playTab][tab](); body.append(cur.el); }
   setBg(TBG[tab], 0.55); cur.update();
 }
-function onMeters() { const m = S.m; if (sel('home', 1) === 1) { pulseBg(0.35, false); return; } hd.m.set(meterFrac(m.trk[tIdx()] || 0)); hd.cpu.textContent = 'CPU ' + Math.round(m.cpu) + '%'; pulseBg(Math.min(1, Math.max(m.pkL, m.pkR) * 1.3), false); if (cur && cur.fast) cur.fast(m); }
-function onAct(name) { if (name === 'LEFT' || name === 'RIGHT') setSel('tab', (sel('tab', 0) + (name === 'RIGHT' ? 1 : TABS.length - 1)) % TABS.length); }
+function onMeters() { const m = S.m; hsPoll(() => { if (hsOn()) hsBottomRender(); }); if (sel('home', 1) === 1) { pulseBg(0.35, false); return; } if (hsOn()) return; hd.m.set(meterFrac(m.trk[tIdx()] || 0)); hd.cpu.textContent = 'CPU ' + Math.round(m.cpu) + '%'; pulseBg(Math.min(1, Math.max(m.pkL, m.pkR) * 1.3), false); if (cur && cur.fast) cur.fast(m); }
+function onAct(name) { if (hsOn()) return; if (name === 'LEFT' || name === 'RIGHT') setSel('tab', (sel('tab', 0) + (name === 'RIGHT' ? 1 : TABS.length - 1)) % TABS.length); }
 
 // ---------------------------------------------------------------- the start screen
 function homeView() {
