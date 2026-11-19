@@ -43,7 +43,7 @@ function setTrack(t) { const st = S.st, T = st.tracks[t]; if (!T) return; C(`sel
 
 let toastT = 0;
 function toast(t) { const e = document.getElementById('toast'); if (!e) return; e.textContent = t; e.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => e.classList.remove('show'), 1800); }
-function tick() {
+function tick() { if (S.st && sel('fitv', 0) !== FIT.seen) { FIT.seen = sel('fitv', 0); fitApply(); }
   let p; try { p = JSON.parse(SMB.poll()); } catch (e) { return; } S.poll = p;
   if (p.m) { const [a, b] = p.m.split(';'); const f = a.split(',').map(Number); S.m = { v: f[0], playing: f[1], mode: f[2], tick: f[3], bars: f[4], mom: f[5], short: f[6], integ: f[7], lim: f[8], glue: f[9], pkL: f[10], pkR: f[11], inPk: f[12], recSec: f[13], cpu: f[14], trk: f.slice(15), inStrip: Number(b) };
     if (S.m.v !== S.v) sync(); }
@@ -53,6 +53,21 @@ function tick() {
   const bz = document.getElementById('busy'); if (bz) { bz.classList.toggle('show', !!p.busy && p.busy !== 'LOADING'); bz.textContent = p.busy || ''; }
   if (S.st && S.m && window.onMeters) onMeters();
 }
+// ---- fitting the picture to the glass. The whole interface is drawn on a 54-unit-tall stage; this decides how big a unit is and where the stage sits.
+// It trusts the smallest answer it can get: the page's own size, what Android says is actually visible, and a trim the user sets by hand
+// on the start screen (for a panel that hides a strip the system does not report).
+const FIT = { vis: null, info: '', seen: -1, trim: () => { const k = document.documentElement.classList.contains('top') ? 'smfitT' : 'smfitB'; let v = 0; try { v = parseFloat(localStorage.getItem(k)) || 0; } catch (e) {} return clamp(v, 0, 25); } };
+function fitApply() {
+  const de = document.documentElement, top = de.classList.contains('top'), SW = top ? 96 : 62, SH = 54, st = document.getElementById('stage'); if (!st) return;
+  let W = Math.min(innerWidth, de.clientWidth || 1e9), H = Math.min(innerHeight, de.clientHeight || 1e9, window.visualViewport ? visualViewport.height : 1e9), ox = 0, oy = 0;
+  const v = FIT.vis; if (v && v.vw > 0 && v.r > v.l && v.b > v.t) { const k = innerWidth / v.vw; ox = v.l * k; oy = v.t * k; W = Math.min(W - ox, (v.r - v.l) * k); H = Math.min(H - oy, (v.b - v.t) * k); }
+  H *= 1 - FIT.trim() / 100; const r = Math.max(4, Math.min(W / SW, H / SH));
+  de.style.fontSize = r + 'px'; st.style.left = (ox + (W - SW * r) / 2) + 'px'; st.style.top = (oy + (H - SH * r) / 2) + 'px';
+}
+function SMFIT(vw, vh, l, t, r, b, info) { FIT.vis = { vw, vh, l, t, r, b }; FIT.info = info || ''; fitApply(); }
+function fitSet(which, d) { const k = which === 'top' ? 'smfitT' : 'smfitB'; let v = 0; try { v = parseFloat(localStorage.getItem(k)) || 0; v = clamp(v + d, 0, 25); localStorage.setItem(k, String(v)); } catch (e) {} C('sel fitv ' + ((sel('fitv', 0) + 1) % 1000)); sync(); fitApply(); return v; }
+function fitGet(which) { try { return parseFloat(localStorage.getItem(which === 'top' ? 'smfitT' : 'smfitB')) || 0; } catch (e) { return 0; } }
+window.addEventListener('resize', fitApply); window.addEventListener('DOMContentLoaded', fitApply);
 function start() { sync(true); setInterval(tick, 50); tick(); if (document.documentElement.classList.contains('top')) curStart(); }
 
 // ---- the stick cursor (top screen): the left stick moves a small chrome sword, A presses whatever its tip is on. Holding A and moving drags.

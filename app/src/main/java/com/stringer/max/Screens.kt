@@ -66,11 +66,14 @@ open class ScreenActivity : Activity() {
         page = intent.getStringExtra("page") ?: choosePage()
         web = WebView(this)
         web.settings.javaScriptEnabled = true; web.settings.domStorageEnabled = true; web.settings.mediaPlaybackRequiresUserGesture = false
+        web.settings.textZoom = 100   // the system's font-size setting must not swell the layout
+        web.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> web.post { reportFit() } }
         web.setBackgroundColor(0xFF03040A.toInt()); web.overScrollMode = View.OVER_SCROLL_NEVER
         web.isHapticFeedbackEnabled = false; web.isLongClickable = false; web.setOnLongClickListener { true }
         web.addJavascriptInterface(Bridge(), "SM")
         // the pages are served from the app's own files under one address
         web.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView, url: String?) { reportFit(); view.postDelayed({ reportFit() }, 600) }
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                 val u = request.url; if (u.host != "sm.local") return null; val path = u.path ?: return null
                 if (path.endsWith("/smp")) {   // one of the user's own sound files, for Heartstring to decode
@@ -93,7 +96,25 @@ open class ScreenActivity : Activity() {
 
     override fun onStart() { super.onStart(); Studio.shown() }
     override fun onStop() { super.onStop(); Studio.hidden() }
-    override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) immersive() }
+    override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) { immersive(); web.postDelayed({ reportFit() }, 400) } }
+    /** Tell the page which part of this view can really be seen: inside the system bars, any cutout, and the edge of the panel itself. */
+    @Suppress("DEPRECATION")
+    private fun reportFit() {
+        if (!::web.isInitialized || web.width == 0 || web.height == 0) return
+        val loc = IntArray(2); web.getLocationOnScreen(loc)
+        val f = android.graphics.Rect(); window.decorView.getWindowVisibleDisplayFrame(f)
+        val dm = android.util.DisplayMetrics(); windowManager.defaultDisplay.getRealMetrics(dm)
+        var il = 0; var it = 0; var ir = 0; var ib = 0
+        val wi = window.decorView.rootWindowInsets
+        if (wi != null) {
+            if (android.os.Build.VERSION.SDK_INT >= 30) { val i = wi.getInsets(android.view.WindowInsets.Type.systemBars() or android.view.WindowInsets.Type.displayCutout()); il = i.left; it = i.top; ir = i.right; ib = i.bottom }
+            else { il = wi.systemWindowInsetLeft; it = wi.systemWindowInsetTop; ir = wi.systemWindowInsetRight; ib = wi.systemWindowInsetBottom }
+        }
+        val l = maxOf(0, il, f.left - loc[0]); val t = maxOf(0, it, f.top - loc[1])
+        val r = minOf(web.width, web.width - ir, f.right - loc[0], dm.widthPixels - loc[0]); val b = minOf(web.height, web.height - ib, f.bottom - loc[1], dm.heightPixels - loc[1])
+        val info = "VIEW ${web.width}x${web.height} AT ${loc[0]},${loc[1]} · PANEL ${dm.widthPixels}x${dm.heightPixels} · FRAME ${f.left},${f.top},${f.right},${f.bottom} · BARS $il,$it,$ir,$ib"
+        web.evaluateJavascript("window.SMFIT&&SMFIT(${web.width},${web.height},$l,$t,$r,$b,'$info')", null)
+    }
     @Suppress("DEPRECATION")
     private fun immersive() {
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
