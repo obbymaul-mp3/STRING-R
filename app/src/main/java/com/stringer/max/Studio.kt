@@ -293,7 +293,7 @@ object Studio {
             var i = offset; val end = offset + count
             while (i < end) {
                 val st = msg[i].toInt() and 0xFF; val type = st and 0xF0
-                if (type == 0x90 && i + 2 < end) { val n = msg[i + 1].toInt() and 0x7F; val v = msg[i + 2].toInt() and 0x7F; if (v > 0) Native.cmd("non $selTrack $n ${v / 127f}") else Native.cmd("noff $selTrack $n"); i += 3 }
+                if (type == 0x90 && i + 2 < end) { val n = msg[i + 1].toInt() and 0x7F; val v = msg[i + 2].toInt() and 0x7F; if (v > 0) { Native.cmd("non $selTrack $n ${v / 127f}"); act("N$n") } else Native.cmd("noff $selTrack $n"); i += 3 }   // a key on the FM-1 sounds, and on the NOTES rung it also writes the note
                 else if (type == 0x80 && i + 2 < end) { Native.cmd("noff $selTrack ${msg[i + 1].toInt() and 0x7F}"); i += 3 }
                 else if (type == 0xC0 || type == 0xD0) i += 2
                 else if (st >= 0xF8) i += 1
@@ -321,15 +321,15 @@ object Studio {
         val down = e.action == KeyEvent.ACTION_DOWN; val first = down && e.repeatCount == 0
         when (e.keyCode) {
             KeyEvent.KEYCODE_BUTTON_A -> { if (first) act("A1") else if (!down) act("A0") }   // A presses whatever the stick cursor points at
-            KeyEvent.KEYCODE_BUTTON_B -> if (first) { Native.cmd("stop"); if (System.currentTimeMillis() - lastStop < 600) Native.cmd("stop"); lastStop = System.currentTimeMillis(); Native.cmd("bump") }
-            KeyEvent.KEYCODE_BUTTON_X -> if (first) act("REC")
-            KeyEvent.KEYCODE_BUTTON_Y -> if (first) { Native.cmd("undo"); say("UNDO") }
+            KeyEvent.KEYCODE_BUTTON_B -> if (first) act("B")          // delete, on every rung
+            KeyEvent.KEYCODE_BUTTON_X -> if (first) act("X")          // copy
+            KeyEvent.KEYCODE_BUTTON_Y -> if (first) act("Y")          // paste
             KeyEvent.KEYCODE_BUTTON_START -> if (first) act("PLAY")
-            KeyEvent.KEYCODE_BUTTON_SELECT -> if (first) act("VIEW")
-            KeyEvent.KEYCODE_BUTTON_L1 -> if (first) act("TRACK-")
-            KeyEvent.KEYCODE_BUTTON_R1 -> if (first) act("TRACK+")
-            KeyEvent.KEYCODE_BUTTON_THUMBL -> if (first) act("PAT-")
-            KeyEvent.KEYCODE_BUTTON_THUMBR -> if (first) act("PAT+")
+            KeyEvent.KEYCODE_BUTTON_SELECT -> if (first) act("VIEW")  // the small screen's next page
+            KeyEvent.KEYCODE_BUTTON_L1 -> if (first) act("L1")        // step out along the ladder
+            KeyEvent.KEYCODE_BUTTON_R1 -> if (first) act("R1")        // step in
+            KeyEvent.KEYCODE_BUTTON_THUMBL -> if (first) act("REC")
+            KeyEvent.KEYCODE_BUTTON_THUMBR -> if (first) { Native.cmd("undo"); say("UNDO") }
             KeyEvent.KEYCODE_BUTTON_L2 -> { if (first) Native.cmd("perf 0 0.22") else if (!down) Native.cmd("perf 0 0.5") }
             KeyEvent.KEYCODE_BUTTON_R2 -> { if (first) Native.cmd("perf 1 1") else if (!down) Native.cmd("perf 1 0") }
             KeyEvent.KEYCODE_DPAD_LEFT -> if (down) act("LEFT")

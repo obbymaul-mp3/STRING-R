@@ -48,7 +48,7 @@ function tick() { if (S.st && sel('fitv', 0) !== FIT.seen) { FIT.seen = sel('fit
   if (p.m) { const [a, b] = p.m.split(';'); const f = a.split(',').map(Number); S.m = { v: f[0], playing: f[1], mode: f[2], tick: f[3], bars: f[4], mom: f[5], short: f[6], integ: f[7], lim: f[8], glue: f[9], pkL: f[10], pkR: f[11], inPk: f[12], recSec: f[13], cpu: f[14], trk: f.slice(15), inStrip: Number(b) };
     if (S.m.v !== S.v) sync(); }
   CUR.lx = p.lx || 0; CUR.ly = p.ly || 0;
-  if (p.acts && p.acts.length) { if (S.lastAct < 0) S.lastAct = p.acts[p.acts.length - 1][0]; for (const [n, name] of p.acts) if (n > S.lastAct) { S.lastAct = n; if (name === 'A1' || name === 'A0') curPress(name === 'A1'); else if (window.onAct) onAct(name); } } else if (S.lastAct < 0) S.lastAct = 0;
+  if (p.acts && p.acts.length) { if (S.lastAct < 0) S.lastAct = p.acts[p.acts.length - 1][0]; for (const [n, name] of p.acts) if (n > S.lastAct) { S.lastAct = n; if ((name === 'A1' || name === 'A0') && CUR.el && (CUR.on || CUR.target)) curPress(name === 'A1'); else { if (CUR.el && CUR.on && ['UP', 'DOWN', 'LEFT', 'RIGHT'].includes(name)) curShow(false); if (window.onAct) onAct(name); } } } else if (S.lastAct < 0) S.lastAct = 0;
   if (p.notice && p.notice !== tick.last) toast(p.notice); tick.last = p.notice;
   const bz = document.getElementById('busy'); if (bz) { bz.classList.toggle('show', !!p.busy && p.busy !== 'LOADING'); bz.textContent = p.busy || ''; }
   if (S.st && S.m && window.onMeters) onMeters();
@@ -129,6 +129,9 @@ function knob(o) {
     const now = Date.now(); if (now - lastTap < 320 && o.def != null) { o.set(o.def); el.upd(); } lastTap = now; });
   el.addEventListener('pointermove', (e) => { if (!on) return; let v = clamp(sv + (sy - e.clientY) / (rem() * 22)); if (o.steps) { const n = o.stepMax || o.steps.length - 1; v = Math.round(v * n) / n; } if (v !== o.get()) { o.set(v); el.upd(); } });
   const end = () => { if (on) { on = false; C('bump'); } }; el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  // the same dial from the buttons: one click up or down, and back to where it started
+  el.nudge = (d) => { mark(); let v = clamp(o.get()); if (o.steps) { const n = o.stepMax || o.steps.length - 1; v = clamp(Math.round(v * n) / n + d / n); } else v = clamp(Math.round((v + d * 0.02) * 100) / 100); o.set(v); el.upd(); if (o.focus) SMB.focus(o.focus); C('bump'); };
+  el.resetV = () => { if (o.def == null) return false; mark(); o.set(o.def); el.upd(); C('bump'); return true; }; el.focusMe = () => { if (o.focus) SMB.focus(o.focus); };
   el.upd(); return el;
 }
 // put text in a one-line box so that it always fits: first a smaller size, then fewer letters. The box must already be on the page.
@@ -151,6 +154,16 @@ function popup(title, body, w) { closePop(); const p = h('div', { class: 'pop', 
 function choose(title, items, fn, cols = 3, w) { popup(title, h('div', { class: 'scroll', style: `display:grid;grid-template-columns:repeat(${cols},1fr);gap:.5rem;max-height:70vh` }, items.map((it, i) => btn(it.label || it, () => { closePop(); fn(i, it); }, it.on ? 'on' : '', 'height:3.6rem'))), w); }
 function ask(title, value, fn) { const done = () => { const v = inp.value.trim(); closePop(); if (v) fn(v); }, inp = h('input', { class: 'txt grow', value: value || '', maxlength: 24, enterkeyhint: 'done', onkeydown: (e) => { if (e.key === 'Enter') done(); } }); popup(title, h('div', { class: 'row gap' }, inp, btn('OK', done, 'on')), 46).classList.add('high'); setTimeout(() => { inp.focus(); inp.select(); }, 50); }
 function confirmPop(title, fn) { popup(title, h('div', { class: 'row gap' }, btn('NO', closePop, '', 'flex:1'), btn('YES', () => { closePop(); fn(); }, 'on', 'flex:1')), 36); }
+
+// ---- the ladder. The app is four rungs, left to right, from the whole song down to one sound: SONG > BLOCK > NOTES > SOUND.
+// L steps out, R steps in. On every rung the four face buttons mean the same thing: A does, B deletes, X copies, Y pastes.
+// The big screen shows the rung; the small screen shows the controls for whatever the sword is on.
+const RUNGS = ['SONG', 'BLOCK', 'NOTES', 'SOUND'], RVIEW = [0, 4, 1, 5];
+const LEGEND = [['PLACE · OPEN', 'DELETE', 'COPY', 'PASTE'], ['USE THIS', 'DELETE', 'COPY', 'PASTE NEW'], ['NOTE ON/OFF', 'DELETE', 'COPY BAR', 'PASTE BAR'], ['HEAR IT', 'RESET DIAL', 'COPY SOUND', 'PASTE SOUND']];
+// a button press that starts on the small screen and is meant for the big one travels through the shared state, with a counter so repeats count
+const XA = ['A', 'B', 'X', 'Y', 'L1', 'R1', 'A+LEFT', 'A+RIGHT', 'NEW', 'CLONE', 'HEART'];
+function sendAct(name) { const i = XA.indexOf(name); if (i < 0) return; C('sel xact ' + (((((sel('xact', 0) >> 5) + 1) % 30000) << 5) | i)); sync(); }
+function sendStep(n) { C('sel stepin ' + (((((sel('stepin', 0) >> 8) + 1) % 30000) << 8) | (n & 255))); sync(); }
 
 // ---- things both screens do
 function transport(name) {

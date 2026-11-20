@@ -39,18 +39,18 @@ async def main():
         # a 16-track worst case is checked too
         for tr in range(5):
             await cmd(top,f'sel track {tr}'); await cmd(top,f'ed {tr} 0')
-            for i,v in enumerate(['song','notes','sample','files']):
+            for i,v in enumerate(['song','notes','sample','files','block','soundv']):
                 if tr>2 and i!=1: continue
                 await cmd(top,f'sel view {i}'); await shot(top,f'top_{v}{tr}')
-            for i,v in enumerate(['sound','fx','mix','input','master','play']):
+            for i,v in enumerate(['sound','fx','mix','input','master','play','ctxsong','ctxblock']):
                 if tr>1 and i not in (0,5): continue
-                await cmd(bot,f'sel tab {i}'); await shot(bot,f'bot_{v}{tr}')
+                await cmd(top,f'sel view {[5,5,0,1,0,1,0,4][i]}'); await top.wait_for_timeout(250); await cmd(bot,f'sel tab {min(i,6)}'); await shot(bot,f'bot_{v}{tr}')
         if 'worst' in sys.argv:
             for c in ['title "MY VERY LONG SONG NAME 24"','trk name 0 "WWWWWWWWWWWWWWWWWWWWWWWW"','trk name 1 "MMMMMMMMMMMMMMMMMMMMMMMM"','blk name 0 0 "WWWWWWWWWWWWWWWWWWWWWWWW"','blk name 1 0 "MMMMMMMMMMMMMMMMMMMMMMMM"','blk bars 1 0 1','bpm 240'] + ['trk add %d'%(i%4) for i in range(11)]: await cmd(top,c)
             for tr in (0,1,15):
                 await cmd(top,f'sel track {tr}'); await cmd(top,f'ed {tr} 0')
-                for i,v in enumerate(['song','notes','sample','files']): await cmd(top,f'sel view {i}'); await shot(top,f'w_top_{v}{tr}')
-                for i,v in enumerate(['sound','fx','mix','input','master','play']): await cmd(bot,f'sel tab {i}'); await shot(bot,f'w_bot_{v}{tr}')
+                for i,v in enumerate(['song','notes','sample','files','block','soundv']): await cmd(top,f'sel view {i}'); await shot(top,f'w_top_{v}{tr}')
+                for i,v in enumerate(['sound','fx','mix','input','master','play','ctxsong','ctxblock']): await cmd(top,f'sel view {[5,5,0,1,0,1,0,4][i]}'); await top.wait_for_timeout(250); await cmd(bot,f'sel tab {min(i,6)}'); await shot(bot,f'w_bot_{v}{tr}')
         for extra in []:
             pg = top if extra.startswith('top:') else bot; await pg.evaluate(extra.split(':',1)[1]); await shot(pg,'x_'+str(sys.argv.index(extra)))
         print('\n'.join(errs) or 'no js errors'); print('TOTAL', total); await b.close()

@@ -24,22 +24,26 @@ The pink **♥ HEART** button on the top screen opens Heartstring, a chain-react
 
 Heartstring makes its own sound, separate from the song's mixer: it does not pass through MASTER and is not in an export until you send its bars to the song.
 
-## Buttons
-| Control | Does |
+## The ladder
+
+The app is four rungs, left to right, from the whole song down to one sound: **SONG › BLOCK › NOTES › SOUND**. The top screen shows the rung you are on, and a small sword marks where you are. The bottom screen follows the sword: it always shows the controls for whatever it is on.
+
+| Button | Does |
 |---|---|
-| Left stick | moves the cursor on the top screen (a small pixel sword with a heart in its hilt) |
-| A | presses whatever the cursor points at; hold it and move to drag |
+| R1 / L1 | step in / step back out along the ladder |
+| D-pad | moves the sword (on SOUND: left and right pick a dial, up and down turn it) |
+| A | do: place or open a block, use a version, put a note on or off, hear the sound |
+| B | delete (on SOUND: put the dial back) |
+| X / Y | copy / paste: a block, a version, a bar of notes, a whole sound |
+| Hold A + D-pad | change it: a block's length, a note's pitch or length |
 | START | play / pause |
-| B | stop (twice: back to the start) |
-| X | record what you play into the block |
-| Y | undo |
-| SELECT | next view on the top screen |
-| L1 / R1 | previous / next track |
-| L3 / R3 | previous / next block of the track |
-| L2 | filter sweep while held |
-| R2 | stutter while held |
-| D-pad | move around the timeline or the notes |
-| Right stick | turns the knob you last touched |
+| SELECT | the bottom screen's next page (mixer, master, record, effects) |
+| Left stick + A | a pointer for anything on the top screen |
+| Left stick click | record |
+| Right stick | turns the dial you last touched; click it to undo |
+| L2 / R2 | filter and stutter while held |
+
+On the NOTES rung, the keys on the bottom screen and the keys of a connected FM-1 write notes at the sword and step on.
 
 Touch works everywhere as well; the cursor hides when you touch the screen and returns when you move the stick.
 

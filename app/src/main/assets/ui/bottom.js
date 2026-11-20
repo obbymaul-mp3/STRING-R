@@ -1,7 +1,9 @@
 // STRING-R: the bottom screen. The sound of the selected track, its effects, the mixer, the live input, the master, and pads to play.
 'use strict';
 document.documentElement.className = 'bottom';
-const TABS = ['SOUND', 'FX', 'MIX', 'INPUT', 'MASTER', 'PLAY'], TBG = ['niche', 'niche', 'hall', 'niche', 'hall', 'niche'];
+const TABS = ['SOUND', 'FX', 'MIX', 'RECORD', 'MASTER', 'KEYS', 'THIS BLOCK'], TBG = ['niche', 'niche', 'hall', 'niche', 'hall', 'niche', 'niche'];
+// which pages the small screen offers on each rung of the ladder; the first is the one it turns to by itself
+const PAGES = [[6, 2, 4], [6], [5, 3], [0, 1]]; let lastRung = -1, tabRow = null;
 const V = { page: 0, pads16: null, mixPage: 0, mp: '', target: -10, mpage: 0, oct: 0, sound: {}, vox: '' };
 let hd = {}, body, tabs = [], cur = null, curKey = '', main, home, wasHome = null;
 const MAINPLATES = PL.plate([[0, 0], [1240, 0], [1240, 84], [1200, 116], [40, 116], [0, 84]], 'plate', PL.rivet(20, 20) + PL.rivet(1220, 20) + '') +
@@ -16,11 +18,11 @@ function build() {
   hd.name = h('b', { style: 'display:block;width:17rem;text-align:left;font-size:1rem;color:#fff;white-space:nowrap;overflow:hidden;font-weight:700' }); hd.kind = lab('');
   hd.play = btn('▶', () => transport('PLAY'), 'sq', 'font-size:1.3rem;height:4rem;width:4rem'); hd.rec = btn('●', () => transport('REC'), 'sq', 'font-size:1.3rem;height:4rem;width:4rem;color:#ff5fb4'); hd.cpu = lab('', 'hi'); hd.m = leds('', 'width:100%');
   body = A('left:1.2rem;top:6.5rem;width:59.6rem;height:41rem');
-  tabs = TABS.map((v, i) => btn(v, () => setSel('tab', i), 'off', 'flex:1;height:3.8rem;font-size:1rem'));
+  tabRow = A('left:1.6rem;top:49rem;width:58.8rem;height:3.8rem;display:flex;gap:.4rem;align-items:center');
   main = A('inset:0', A('left:1.4rem;top:.7rem;width:59.2rem;height:4.2rem;display:flex;align-items:center;gap:.5rem',
     btn('◀', () => transport('TRACK-'), 'sq', 'height:4rem'), h('button', { class: 'lcd col cut', style: 'height:4rem;width:19rem;padding:0 1rem;justify-content:center;gap:.2rem;align-items:flex-start', tap: () => choose('CHOOSE A TRACK', [...S.st.tracks.map((T, i) => ({ label: pad2(i + 1) + ' ' + T.name, on: i === tIdx() })), '+ ADD A TRACK'], (i) => i >= S.st.tracks.length ? addTrackMenu() : setTrack(i), 2, 50) }, hd.kind, hd.name),
     btn('▶', () => transport('TRACK+'), 'sq', 'height:4rem'), h('div', { class: 'grow' }), h('div', { class: 'lcd col', style: 'height:4rem;width:15rem;padding:.5rem .7rem;justify-content:space-between' }, h('div', { class: 'row', style: 'justify-content:space-between' }, lab('THIS TRACK'), hd.cpu), hd.m), btn('■', () => { C('stop'); sync(); }, 'sq', 'font-size:1.2rem;height:4rem;width:4rem'), hd.play, hd.rec),
-    body, A('left:1.6rem;top:49rem;width:58.8rem;display:flex;gap:.5rem', tabs));
+    body, tabRow);
   home = A('inset:0;display:none'); app.append(main, home);
 }
 function render() {
@@ -28,14 +30,39 @@ function render() {
   if (mode !== wasHome) { wasHome = mode; home.style.display = isHome ? 'block' : 'none'; main.style.display = mode === 'main' ? 'block' : 'none'; hsBottomShow(document.getElementById('app'), heart); setPlates(1240, 1080, isHome ? HOMEPLATES : heart ? HSBPLATES() : MAINPLATES); document.getElementById('dim').style.cssText = isHome ? 'inset:0' : 'left:0;right:0;top:5.8rem;bottom:6rem'; curKey = ''; if (isHome) homeView(); }
   if (isHome) { setBg('niche', 0.45); return; }
   if (heart) { document.getElementById('dim').style.cssText = 'inset:0'; setBg('hall', 0.6); hsBottomRender(); return; }
+  const rg = clamp(sel('rung', 0), 0, 3), pages = PAGES[rg]; if (rg !== lastRung) { lastRung = rg; if (sel('tab', 0) !== pages[0]) return setSel('tab', pages[0]); } if (!pages.includes(sel('tab', 0))) return setSel('tab', pages[0]);
   const st = S.st, T = trk(), tab = sel('tab', 0); fitTxt(hd.name, T ? T.name : 'NO TRACK'); hd.kind.textContent = T ? `TRACK ${pad2(tIdx() + 1)} · ${D.TYPES[T.type]}` : ''; hd.play.textContent = st.playing ? '❚❚' : '▶'; hd.play.classList.toggle('on', !!st.playing); hd.rec.classList.toggle('hot', !!st.rec);
-  tabs.forEach((b, i) => { b.classList.toggle('off', i !== tab); b.classList.toggle('on', i === tab); });
-  const key = [tab, tIdx(), T ? T.type : -1, T ? T.eng : 0, V.page, V.mpage, V.mixPage, st.tracks.length, T && T.type === 2 ? Math.round(T.P[P.S_MODE] * 4) : 0].join(':');
-  if (key !== curKey) { curKey = key; body.innerHTML = ''; cur = [soundTab, fxTab, mixTab, inputTab, masterTab, playTab][tab](); body.append(cur.el); }
+  { const lk = rg + ':' + tab; if (tabRow.dataset.k !== lk) { tabRow.dataset.k = lk; tabRow.innerHTML = ''; const bc = ['#ff5fb4', '#f2c14e', '#8f82ff', '#4fd6c8'];
+      tabRow.append(...pages.map((p) => btn(p === 6 ? (rg === 0 ? 'THIS BLOCK' : 'VERSIONS') : TABS[p], () => setSel('tab', p), p === tab ? 'on' : 'off', `width:${pages.length > 2 ? 6.6 : 7.6}rem;height:3.8rem;font-size:.85rem;padding:0;flex-shrink:0`)),
+        h('div', { style: 'flex:1;min-width:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.3rem;height:3.8rem;align-items:center;padding-left:.4rem' }, ['A', 'B', 'X', 'Y'].map((k, i) => h('button', { class: 'row', style: 'gap:.35rem;height:3.6rem;min-width:0;text-align:left', 'aria-label': k + ': ' + LEGEND[rg][i], tap: () => { if (!(rg === 3 && dialAct(k))) sendAct(k); } }, h('span', { style: `width:1.7rem;height:1.7rem;border-radius:50%;background:${bc[i]};color:#1a0b33;font-size:1rem;display:flex;align-items:center;justify-content:center;flex-shrink:0` }, k), h('span', { style: 'font-size:.68rem;letter-spacing:.04rem;color:#fff;white-space:normal;line-height:1.05;overflow:hidden' }, LEGEND[rg][i]))))); } }
+  const key = [tab, rg === 0 || tab !== 6 ? 0 : 1, tIdx(), T ? T.type : -1, T ? T.eng : 0, V.page, V.mpage, V.mixPage, st.tracks.length, T && T.type === 2 ? Math.round(T.P[P.S_MODE] * 4) : 0].join(':');
+  if (key !== curKey) { curKey = key; body.innerHTML = ''; cur = [soundTab, fxTab, mixTab, inputTab, masterTab, playTab, ctxTab][tab](); body.append(cur.el); }
   setBg(TBG[tab], 0.55); cur.update();
 }
 function onMeters() { const m = S.m; hsPoll(() => { if (hsOn()) hsBottomRender(); }); if (sel('home', 1) === 1) { pulseBg(0.35, false); return; } if (hsOn()) return; hd.m.set(meterFrac(m.trk[tIdx()] || 0)); hd.cpu.textContent = 'CPU ' + Math.round(m.cpu) + '%'; pulseBg(Math.min(1, Math.max(m.pkL, m.pkR) * 1.3), false); if (cur && cur.fast) cur.fast(m); }
-function onAct(name) { if (hsOn()) return; if (name === 'LEFT' || name === 'RIGHT') setSel('tab', (sel('tab', 0) + (name === 'RIGHT' ? 1 : TABS.length - 1)) % TABS.length); }
+function onAct(name) { if (!S.st || hsOn() || sel('home', 1) === 1) return; const rg = clamp(sel('rung', 0), 0, 3);
+  if (name === 'VIEW') { const pg = PAGES[rg], i = pg.indexOf(sel('tab', 0)); return setSel('tab', pg[(i + 1) % pg.length]); }   // SELECT turns the page
+  if (rg === 3) dialAct(name); }
+// on the SOUND rung the d-pad works the dials: left and right pick one, up and down turn it, B puts it back
+function dialAct(name) { if (!body) return false; const ks = [...body.querySelectorAll('.knob')]; if (!ks.length) return false; let i = ks.findIndex(k => k.classList.contains('focus')); const pick = (j) => { ks.forEach(k => k.classList.remove('focus')); ks[j].classList.add('focus'); if (ks[j].focusMe) ks[j].focusMe(); };
+  if (name === 'LEFT' || name === 'RIGHT') { pick(i < 0 ? 0 : (i + (name === 'RIGHT' ? 1 : ks.length - 1)) % ks.length); return true; } if (!['UP', 'DOWN', 'B'].includes(name)) return false; if (i < 0) { i = 0; pick(0); }
+  if (name === 'UP') ks[i].nudge(1); else if (name === 'DOWN') ks[i].nudge(-1); else if (!ks[i].resetV()) toast('THIS DIAL HAS NO RESET'); return true; }
+// what the sword is on, and the same actions the buttons do, big enough for a thumb
+function ctxTab() {
+  const info = h('div', { class: 'lcd col', style: 'padding:.9rem 1.2rem;gap:.2rem;height:9.8rem;justify-content:center;flex-shrink:0' }), grid = h('div', { style: 'display:grid;grid-template-columns:repeat(4,1fr);gap:.6rem' }), tip = lab('', 'hi'), el = h('div', { class: 'abs col', style: 'inset:0;gap:.8rem' }, info, grid, tip); let last = '';
+  const big = (t, a, cls = '', span = 1, dim = false) => h('button', { class: 'btn ' + cls + (dim ? ' dim' : ''), style: `height:5.6rem;font-size:1rem;grid-column:span ${span};white-space:normal;line-height:1.2;padding:0 .4rem`, tap: () => sendAct(a) }, t);
+  const title = (t) => h('div', { class: 'mich chrome', style: 'font-size:2.2rem;line-height:3.5rem;white-space:nowrap;overflow:hidden' }, t);
+  function update() { const rg = sel('rung', 0), st = S.st, t = tIdx(), T = trk(); if (!T) { info.innerHTML = ''; grid.innerHTML = ''; info.append(lab('ADD A TRACK ON THE BIG SCREEN FIRST', 'hi')); return; }
+    if (rg === 0) { const cb = sel('cbar', 0), p = T.pl.find(([b0, bi]) => T.blocks[bi] && cb >= b0 && cb < b0 + T.blocks[bi].bars), B = p && T.blocks[p[1]], k = ['s', t, cb, p ? p.join('.') : '-', B ? B.name + B.bars + ':' + B.n.length : '', T.blocks.length, st.edB].join('|'); if (k === last) return; last = k; info.innerHTML = ''; grid.innerHTML = '';
+      info.append(lab(p ? 'THE SWORD IS ON' : `BAR ${cb + 1} OF ${T.name} · NOTHING HERE YET`), title(p ? B.name : 'Empty bar'), lab(p ? `BLOCK ${pad2(p[1] + 1)} · BARS ${p[0] + 1}–${p[0] + B.bars} · ${B.n.length} NOTES` : (T.blocks.length ? 'A PLACES ' + T.blocks[st.edT === t && T.blocks[st.edB] ? st.edB : 0].name + ' HERE' : 'A MAKES A NEW BLOCK HERE'), 'hi'));
+      grid.append(big(p ? 'OPEN ITS NOTES ▸' : 'PLACE A BLOCK', 'A', 'on', 2), big('DELETE', 'B', '', 1, !p), big('COPY', 'X', '', 1, !p), big('PASTE', 'Y'), big('− SHORTER', 'A+LEFT', '', 1, !p), big('LONGER +', 'A+RIGHT', '', 1, !p), big('ITS VERSIONS ▸', 'R1'));
+      if (T.type === 0) grid.append(big('♥ LET HEARTSTRING WRITE THE DRUMS', 'HEART', 'hot', 4)); tip.textContent = 'THE D-PAD MOVES THE SWORD ON THE BIG SCREEN. THIS SCREEN FOLLOWS IT.'; }
+    else { const bi = clamp(sel('cbi', 0), 0, Math.max(0, T.blocks.length - 1)), B = T.blocks[bi], used = T.pl.filter(p => p[1] === bi).length, k = ['b', t, bi, B ? B.name + B.bars + ':' + B.n.length : '', used, T.blocks.length].join('|'); if (k === last) return; last = k; info.innerHTML = ''; grid.innerHTML = '';
+      if (!B) { info.append(lab('THIS TRACK HAS NO BLOCKS YET', 'hi')); grid.append(big('+ NEW BLOCK', 'NEW', 'hot', 4)); return; }
+      info.append(lab(`VERSION ${pad2(bi + 1)} OF ${T.blocks.length} · ${T.name}`), title(B.name), lab(`${B.bars} BAR${B.bars > 1 ? 'S' : ''} · ${B.n.length} NOTES · USED ×${used} IN THE SONG`, 'hi'));
+      grid.append(big('USE THIS ONE', 'A', 'on', 2), big('MAKE A COPY', 'CLONE', 'hot', 2), big('EDIT ITS NOTES ▸', 'R1', '', 2), big('+ NEW EMPTY', 'NEW'), big('DELETE', 'B', '', 1, used > 0 || T.blocks.length < 2)); tip.textContent = 'A COPY IS A NEW VERSION: CHANGE IT WITHOUT TOUCHING THE ONE YOU COPIED.'; } }
+  return { el, update };
+}
 
 // ---------------------------------------------------------------- the start screen
 function homeView() {
@@ -142,7 +169,7 @@ function samplerSound() {
 }
 function midiSound() {
   const t = tIdx(), chL = h('div', { class: 'mich', style: 'font-size:2.6rem;color:#fff;width:8rem;text-align:center' }), dev = lab('', 'hi');
-  const el = h('div', { class: 'abs col', style: 'inset:0;gap:1rem;align-items:center;justify-content:center' }, h('div', { class: 'mich chrome', style: 'font-size:1.6rem;letter-spacing:.3rem' }, 'THIS TRACK PLAYS THE FM-1'), lab('ITS NOTES GO OUT OVER USB MIDI. THE FM-1 MAKES THE SOUND; RECORD IT ON THE INPUT TAB TO KEEP IT AS AUDIO.', 'hi'), dev,
+  const el = h('div', { class: 'abs col', style: 'inset:0;gap:1rem;align-items:center;justify-content:center' }, h('div', { class: 'mich chrome', style: 'font-size:1.6rem;letter-spacing:.3rem' }, 'THIS TRACK PLAYS THE FM-1'), lab('ITS NOTES GO OUT OVER USB MIDI. THE FM-1 MAKES THE SOUND; RECORD IT ON THE NOTES RUNG, RECORD PAGE, TO KEEP IT AS AUDIO.', 'hi'), dev,
     h('div', { class: 'row gap' }, lab('MIDI CHANNEL', 'hi'), btn('−', () => edit(`trk ch ${t} ${(trk().ch + 15) % 16}`), 'sq'), chL, btn('+', () => edit(`trk ch ${t} ${(trk().ch + 1) % 16}`), 'sq')), h('div', { style: 'width:100%' }, keysRow(t)));
   return { el, update() { chL.textContent = trk().ch + 1; }, fast() { dev.textContent = S.poll.midi ? 'CONNECTED: ' + S.poll.midi.toUpperCase() : 'NO MIDI DEVICE FOUND — PLUG THE FM-1 INTO THE USB-C PORT'; } };
 }
@@ -196,7 +223,7 @@ function playTab() {
   const T = trk(), t = tIdx(), pads = h('div', { style: 'display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);gap:.5rem;flex:1;min-height:0' }), el = h('div', { class: 'abs row', style: 'inset:0;gap:.7rem;align-items:stretch' }), octL = lab('', 'hi');
   const notes = () => { const mask = D.SCALES[S.st.scale][1], o = []; let n = 48 + S.st.key + V.oct * 12; while (o.length < 16 && n < 127) { if ((mask >> (((n - S.st.key) % 12 + 12) % 12)) & 1) o.push(n); n++; } return o; };
   function fill() { pads.innerHTML = ''; if (!T) return; const drum = T.type === 0, ns = drum ? Array.from({ length: 16 }, (_, i) => i) : notes(); [12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3].forEach((k) => { const n = ns[k]; if (n == null) return pads.append(h('div')); const root = !drum && ((n - S.st.key) % 12 + 12) % 12 === 0, sm = drum && T.pads[n].type === 9 ? S.st.smp.find(s => s.id === T.pads[n].smp) : null;
-    pads.append(hold(h('button', { class: 'btn ' + (root ? 'on' : ''), style: `height:auto;min-height:0;font-size:1rem;flex-direction:column;gap:.2rem;white-space:normal;${drum && T.pads[n].type === 10 ? 'opacity:.4' : ''}` }, drum ? [h('span', { class: 'mono', style: 'font-size:.65rem' }, pad2(n + 1)), sm ? sm.name.slice(0, 12) : D.DRUMS[T.pads[n].type]] : noteName(n)), () => C(`non ${t} ${n} 0.9`), () => C(`noff ${t} ${n}`))); }); }
+    pads.append(hold(h('button', { class: 'btn ' + (root ? 'on' : ''), style: `height:auto;min-height:0;font-size:1rem;flex-direction:column;gap:.2rem;white-space:normal;${drum && T.pads[n].type === 10 ? 'opacity:.4' : ''}` }, drum ? [h('span', { class: 'mono', style: 'font-size:.65rem' }, pad2(n + 1)), sm ? sm.name.slice(0, 12) : D.DRUMS[T.pads[n].type]] : noteName(n)), () => { C(`non ${t} ${n} 0.9`); if (sel('rung', 0) === 2 && !S.st.playing) sendStep(n); }, () => C(`noff ${t} ${n}`))); }); }
   const hb = (label, on, off, cls = '') => hold(h('button', { class: 'btn ' + cls, style: 'flex:1;height:auto;font-size:1rem' }, label), on, off);
   const dot = h('div', { class: 'abs', style: 'top:0;bottom:0;width:.4rem;background:#fff;box-shadow:0 .2rem 0 #0a0420;left:50%' }), strip = h('div', { class: 'lcd', style: 'height:6rem;position:relative;overflow:hidden' }, h('span', { class: 'lab abs', style: 'left:.8rem;top:.5rem' }, '◀ MUFFLE'), h('span', { class: 'lab abs', style: 'right:.8rem;top:.5rem' }, 'THIN ▶'), h('span', { class: 'lab abs', style: 'left:0;right:0;bottom:.5rem;text-align:center' }, 'FILTER: SLIDE AND HOLD'), dot);
   let sd = false; const sv = (e) => { const r = strip.getBoundingClientRect(), x = clamp((e.clientX - r.left) / r.width); dot.style.left = (x * 100) + '%'; C('perf 0 ' + x.toFixed(3)); };
